@@ -34,7 +34,7 @@ function check(name, cond, extra) {
   await page.waitForTimeout(500);
 
   console.log('Phase 2 E2E:');
-  check('page title is Phase 3', (await page.title()).includes('Phase 3'), await page.title());
+  check('page title is Phase 4', (await page.title()).includes('Phase 4'), await page.title());
   check(
     'all 3 presets enabled',
     (await page.$eval('#preset-sql-warehouse', (b) => !b.disabled)) &&

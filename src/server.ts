@@ -1,4 +1,4 @@
-// NecroMCP Phase 2 server: Express + static UI (Mode B files) + REST + MCP call.
+// NecroMCP Phase 3 server: Express + static UI (Mode B files) + REST + MCP call.
 // All three corpses resurrect. Sentinel runs BEFORE wire marshaling; the HITL
 // gate pauses mutations above $10,000 until the caller presents the approval
 // token for that exact call. The "mainframe" behind POST /mcp/call is a LOCAL
@@ -11,6 +11,7 @@ import { cobolDataRows, parseCOBOL, parseSQL, parseWSDL } from './engine/parser'
 import { computeHitlToken, verifyHitlToken } from './engine/hitl';
 import { inspect } from './engine/sentinel';
 import { simulate, simulateCobol, simulateSql } from './engine/simulator';
+import { runExorcism, type ExorcismDeps } from './engine/exorcist-pbt';
 import {
   buildSoapEnvelope,
   buildSqlCall,
@@ -120,11 +121,16 @@ export function createApp(
     }
   }
 
+  // Phase 3: Exorcist quarantine state. When PBT detects the Demon Bug in an
+  // adapter, its MCP tool is quarantined: /mcp/tools stops listing it and
+  // /mcp/call rejects it with BLOCKED_SECURITY until Auto-Patch restores it.
+  const blockedTools = new Set<string>();
+
   const app = express();
   app.use(express.json({ limit: '256kb' }));
 
   app.get('/api/health', (_req: Request, res: Response) => {
-    res.json({ ok: true, mode: 'phase-2', simulator: 'local', note: SIMULATOR_NOTE });
+    res.json({ ok: true, mode: 'phase-3', simulator: 'local', note: SIMULATOR_NOTE });
   });
 
   app.get('/api/graveyard', (_req: Request, res: Response) => {
@@ -158,11 +164,52 @@ export function createApp(
     res.json(schema);
   });
 
+  // Phase 3: PBT Exorcism. Runs 100 fast-check runs comparing the legacy
+  // simulator with the resurrected adapter for one artifact. With
+  // injectDemonBug the buggy adapter is exercised; with applyPatch the
+  // fixed adapter is re-verified 100/100 and the quarantine is lifted.
+  app.post('/api/exorcise', (req: Request, res: Response) => {
+    const body = z
+      .object({
+        artifactId: z.string(),
+        injectDemonBug: z.boolean().optional(),
+        applyPatch: z.boolean().optional(),
+      })
+      .safeParse(req.body ?? {});
+    if (!body.success) {
+      res.status(400).json({
+        error: 'Invalid body: expected { artifactId, injectDemonBug?, applyPatch? }.',
+        issues: body.error.issues.map((i) => ({
+          path: i.path.join('.'),
+          message: i.message,
+        })),
+      });
+      return;
+    }
+    const { artifactId, injectDemonBug, applyPatch } = body.data;
+    if (!schemas.has(artifactId)) {
+      res.status(404).json({ error: `Unknown artifactId "${artifactId}".` });
+      return;
+    }
+    const deps: ExorcismDeps = { schemas, cobolFields, simulate, simulateSql };
+    const report = runExorcism(artifactId, { injectDemonBug, applyPatch }, deps);
+    if (report.status === 'DEMON_DETECTED') {
+      for (const tool of report.blockedTools) blockedTools.add(tool);
+    } else if (report.status === 'PATCHED') {
+      // The patch restores this artifact's tools; other quarantines stay.
+      for (const op of schemas.get(artifactId)!.operations) {
+        blockedTools.delete(op.mcpToolName);
+      }
+    }
+    res.json(report);
+  });
+
   app.get('/mcp/tools', (_req: Request, res: Response) => {
     const allTools: unknown[] = [];
     for (const meta of CORPSES) {
       const schema = schemas.get(meta.artifactId)!;
       for (const op of schema.operations) {
+        if (blockedTools.has(op.mcpToolName)) continue;
         allTools.push({
           name: op.mcpToolName,
           description: op.description,
@@ -186,6 +233,33 @@ export function createApp(
       return;
     }
     const { op } = resolved;
+
+    // 0. Phase 3 quarantine: a tool the Exorcist caught with the Demon Bug
+    // stays dark until Auto-Patch restores it.
+    if (blockedTools.has(toolName)) {
+      const outcome: MCPToolCallOutcome = {
+        toolName,
+        mcpRequestJson: {
+          jsonrpc: '2.0',
+          method: 'tools/call',
+          params: { name: toolName, arguments: args ?? {} },
+        },
+        legacyWirePayload: '',
+        legacyRawResponse: '',
+        normalizedJsonResponse: {},
+        latencyMs: 0,
+        status: 'BLOCKED_SECURITY',
+        securityAlert: {
+          ruleId: 'DEMON_DETECTED',
+          severity: 'CRITICAL',
+          reason:
+            'Tool quarantined by the Exorcist: property-based testing detected the Demon Bug in this adapter. Run Auto-Patch (POST /api/exorcise with applyPatch) to restore it.',
+        },
+      };
+      res.json(outcome);
+      return;
+    }
+
     const parsed = zodByTool.get(toolName)!.safeParse(args ?? {});
     if (!parsed.success) {
       res.status(400).json({
@@ -308,7 +382,7 @@ if (typeof require !== 'undefined' && require.main === module) {
   const port = Number(process.env.PORT ?? 8932);
   const app = createApp();
   app.listen(port, () => {
-    console.log(`NecroMCP Phase 2 listening on http://localhost:${port}`);
+    console.log(`NecroMCP Phase 3 listening on http://localhost:${port}`);
     console.log(`NOTE: ${SIMULATOR_NOTE}`);
   });
 }

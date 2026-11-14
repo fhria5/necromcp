@@ -1,4 +1,4 @@
-// NecroMCP Phase 3 server: Express + static UI (Mode B files) + REST + MCP call.
+// NecroMCP Phase 4 server: Express + static UI (Mode B files) + REST + MCP call.
 // All three corpses resurrect. Sentinel runs BEFORE wire marshaling; the HITL
 // gate pauses mutations above $10,000 until the caller presents the approval
 // token for that exact call. The "mainframe" behind POST /mcp/call is a LOCAL
@@ -130,7 +130,7 @@ export function createApp(
   app.use(express.json({ limit: '256kb' }));
 
   app.get('/api/health', (_req: Request, res: Response) => {
-    res.json({ ok: true, mode: 'phase-3', simulator: 'local', note: SIMULATOR_NOTE });
+    res.json({ ok: true, mode: 'phase-4', simulator: 'local', note: SIMULATOR_NOTE });
   });
 
   app.get('/api/graveyard', (_req: Request, res: Response) => {
@@ -382,7 +382,7 @@ if (typeof require !== 'undefined' && require.main === module) {
   const port = Number(process.env.PORT ?? 8932);
   const app = createApp();
   app.listen(port, () => {
-    console.log(`NecroMCP Phase 3 listening on http://localhost:${port}`);
+    console.log(`NecroMCP Phase 4 listening on http://localhost:${port}`);
     console.log(`NOTE: ${SIMULATOR_NOTE}`);
   });
 }

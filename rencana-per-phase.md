@@ -17,10 +17,22 @@ Spek blueprint disalin verbatim jadi SPEK.md; 9 file .kiro + 3 file graveyard
 ditulis; repo https://github.com/fhria5/necromcp dibuat (MIT, TANPA kode aplikasi).
 Exit: semua file ter-push + terverifikasi via GitHub API.
 
-## Phase 1 — MVP: 1 corpse end-to-end
+## Phase 1 — MVP: 1 corpse end-to-end (SELESAI 14 Nov ~18:35)
 Parser SOAP + AST + REST + UI skeleton (Mode B statis dulu: engine di browser).
-Exit: preset "1998 SOAP Core Bank" jalan end-to-end di browser: pilih corpse →
+Exit TERCAPAI: preset "1998 SOAP Core Bank" jalan end-to-end di browser: pilih corpse →
 lihat AST → panggil 1 tool → lihat wire payload + JSON.
+- Tes: **42/42 vitest lolos** (parser 8, translator 7, simulator 7, synthesizer 7,
+  server 8, browser-engine parity 5). `tsc` bersih.
+- Playwright E2E independen (server Express lokal): **13/13 lolos** — preset →
+  AST → EARS & Zod → call tool → 3 layer wire (MCP JSON, SOAP envelope, JSON hasil).
+- Live curl (server lokal): health OK, resurrect AST 2 tool, `mcp/call` balance
+  SUCCESS 483433/480933/USD, wire $450 SUCCESS `FED00047025` 45000 sen, argumen
+  salah → 400, `GET /mcp/tools` daftar 2 tool + JSON Schema.
+- Demo live: https://fhria5.github.io/necromcp/ (Pages, source `docs/` — salinan
+  `public/` yang dibuat ulang tiap deploy).
+- Catatan build: parser sempat kehilangan `XFER_AMT_USD` karena `>` di dalam
+  `doc="...Gate > 10000"` — regex `<part>` diperbaiki agar tahan `>` dalam atribut
+  ber-quote (ketemu lewat tes, bukan laporan user).
 
 ## Phase 2 — 3 corpse + MCP + Sentinel + HITL
 Translator JSON↔SOAP/SQL/COBOL, MCP tools/list + tools/call, guardrail Sentinel

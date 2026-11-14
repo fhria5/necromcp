@@ -1,13 +1,7 @@
 {
   "mcpServers": {
     "necro-mcp-lazarus": {
-      "command": "npx",
-      "args": ["tsx", "src/engine/mcp-stdio.ts"],
-      "env": {
-        "NECRO_GRAVEYARD_DIR": "./graveyard",
-        "NECRO_SENTINEL_MODE": "STRICT",
-        "NECRO_HITL_LIMIT_USD": "10000"
-      },
+      "url": "http://localhost:8932/mcp/call",
       "disabled": false,
       "autoApprove": [
         "banking_get_balance",

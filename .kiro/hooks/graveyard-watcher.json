@@ -1,0 +1,19 @@
+{
+  "name": "Graveyard Corpse Auto-Resurrector",
+  "description": "Automatically extracts AST, updates EARS specs, and synthesizes MCP tools whenever a legacy file is added or modified in /graveyard",
+  "trigger": {
+    "event": "onFileSave",
+    "filePattern": "graveyard/**/*.*"
+  },
+  "actions": [
+    {
+      "type": "command",
+      "command": "npm run resurrect:all"
+    },
+    {
+      "type": "agentPrompt",
+      "prompt": "A legacy artifact in /graveyard was updated. Re-parse the schema, update .kiro/specs/necro-engine/requirements.md using EARS syntax, and regenerate the MCP tool bindings."
+    }
+  ],
+  "enabled": true
+}

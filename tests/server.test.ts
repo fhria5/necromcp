@@ -46,7 +46,7 @@ describe('REST + MCP endpoints (Phase 2)', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.ok).toBe(true);
-    expect(body.mode).toBe('phase-3');
+    expect(body.mode).toBe('phase-4');
     expect(body.simulator).toBe('local');
     expect(body.note).toContain('simulator lokal');
   });

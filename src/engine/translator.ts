@@ -24,10 +24,21 @@ export function unescapeXml(value: string): string {
     .replace(/&amp;/g, '&');
 }
 
+export interface WireOptions {
+  /**
+   * Demon Bug toggle (Phase 3): when true, the adapter marshals values the
+   * naive way — raw, unescaped text. The correct adapter always escapes.
+   * The server's normal /mcp/call path never sets this; only the Exorcist
+   * (PBT) and the UI Demon Bug toggle do.
+   */
+  demonBug?: boolean;
+}
+
 /** Build a SOAP request envelope from semantic-name args (input order = WSDL order). */
 export function buildSoapEnvelope(
   op: NormalizedOperation,
   args: Record<string, unknown>,
+  opts?: WireOptions,
 ): string {
   const parts = op.inputs
     .map((f) => {
@@ -37,7 +48,8 @@ export function buildSoapEnvelope(
           `Missing argument "${f.semanticName}" for ${op.mcpToolName}.`,
         );
       }
-      return `<${f.legacyName}>${escapeXml(String(raw))}</${f.legacyName}>`;
+      const text = opts?.demonBug ? String(raw) : escapeXml(String(raw));
+      return `<${f.legacyName}>${text}</${f.legacyName}>`;
     })
     .join('');
   return (
@@ -99,6 +111,61 @@ export function parseSoapResponse(
     out[f.semanticName] = f.type === 'number' ? Number(raw) : raw;
   }
   return out;
+}
+
+/**
+ * Parse a SOAP REQUEST envelope back into semantic-name args — what the
+ * mainframe does when it receives the adapter's wire payload. Used by the
+ * Exorcist to run the full round trip (marshal -> mainframe parse -> legacy
+ * simulate -> unmarshal) instead of trusting the adapter's own view.
+ */
+export function parseSoapRequest(
+  xml: string,
+  op: NormalizedOperation,
+): Record<string, unknown> {
+  assertWellFormedXml(xml);
+  const bodyRe = new RegExp(
+    `<tns:${op.legacyAction}>([\\s\\S]*?)</tns:${op.legacyAction}>`,
+  );
+  const bodyMatch = xml.match(bodyRe);
+  if (!bodyMatch) {
+    throw new CorpseCorruptionError(
+      `No <tns:${op.legacyAction}> block found in SOAP request.`,
+    );
+  }
+  const body = bodyMatch[1];
+  const out: Record<string, unknown> = {};
+  for (const f of op.inputs) {
+    const m = body.match(new RegExp(`<${f.legacyName}>([\\s\\S]*?)</${f.legacyName}>`));
+    if (!m) {
+      throw new CorpseCorruptionError(
+        `Missing input part "${f.legacyName}" in SOAP request.`,
+      );
+    }
+    const raw = unescapeXml(m[1]);
+    out[f.semanticName] = f.type === 'number' ? Number(raw) : raw;
+  }
+  return out;
+}
+
+/**
+ * Strict XML well-formedness check for unescaped ampersands — the one thing
+ * a real XML parser rejects that a regex parser silently tolerates. A bare
+ * `&` not starting a valid entity reference (`&amp;` `&lt;` `&gt;`
+ * `&quot;` `&apos;` or a numeric reference) is malformed XML, exactly the
+ * fault the Demon Bug introduces by skipping escaping.
+ */
+export function assertWellFormedXml(xml: string): void {
+  const stripped = xml.replace(
+    /&(amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);/g,
+    '',
+  );
+  const bare = stripped.indexOf('&');
+  if (bare !== -1) {
+    throw new CorpseCorruptionError(
+      `Malformed XML: bare "&" at offset ${bare} (unescaped ampersand).`,
+    );
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -219,6 +286,7 @@ export interface CobolLayoutField {
 export function packCobolRecord(
   fields: CobolLayoutField[],
   args: Record<string, unknown>,
+  opts?: WireOptions,
 ): string {
   const record = new Array<string>(80).fill(' ');
   for (const f of fields) {
@@ -234,9 +302,14 @@ export function packCobolRecord(
     if (f.type === 'iso_date') {
       text = isoToJulian(String(raw));
     } else if (f.type === 'number' && f.decimals > 0) {
-      const scaled = Math.round(
-        (Number(raw) + Number.EPSILON) * Math.pow(10, f.decimals),
-      );
+      // Demon Bug (Phase 3): naive Math.floor truncation — 0.29 USD becomes
+      // 28 cents instead of 29. The correct adapter rounds with an EPSILON
+      // nudge, per SPEK 2.3.
+      const scaled = opts?.demonBug
+        ? Math.floor(Number(raw) * Math.pow(10, f.decimals))
+        : Math.round(
+            (Number(raw) + Number.EPSILON) * Math.pow(10, f.decimals),
+          );
       text = String(scaled).padStart(width, '0');
     } else if (f.type === 'number') {
       text = String(Math.trunc(Number(raw))).padStart(width, '0');

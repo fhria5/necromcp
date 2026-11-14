@@ -6,12 +6,14 @@ Feed it a legacy artifact — 1998 SOAP/WSDL banking, 2004 SQL warehouse DDL,
 REST API + live MCP server, then proves behavioral parity with Property-Based
 Testing ("Exorcism": 100 fast-check runs, counterexample shrinking, auto-patch).
 
-- **Status:** Phase 2 SELESAI 14 Nov — 3 corpse + MCP + Sentinel + HITL.
-  Demo live: https://fhria5.github.io/necromcp/ (ketiga preset jalan end-to-end
-  di browser; 3 skenario playground: eksekusi standar, HITL $50.000,
-  serangan XXE/SQLi yang diblokir Sentinel).
-  Tes: 100/100 vitest (42 Phase 1 + 58 Phase 2), Playwright E2E + live curl
-  terverifikasi.
+- **Status:** Phase 3 SELESAI 14 Nov — PBT Exorcism + Demon Bug + Auto-Patch.
+  Demo live: https://fhria5.github.io/necromcp/ (deck Exorcism di panel tengah:
+  toggle Demon Bug, Run PBT 100 run, counterexample ter-shrink {0.29, "&"},
+  Auto-Patch → 100/100 hijau lagi; tool yang tertangkap dikarantina dari
+  /mcp/tools dan /mcp/call sampai di-patch).
+  Tes: 129/129 vitest (100 lama + 29 baru Phase 3: 13 exorcist + 6
+  exorcise-server + 10 exorcism-browser), Playwright E2E Phase 3 25/25 +
+  Phase 2 25/25, live curl terverifikasi.
 - **Build rule:** build langsung di Muse atas perintah user 'Langsung jalan'
   (14 Nov ~18:27); Kiro Web TIDAK dipakai untuk build.
 - **Honesty rule:** the "mainframes" are local simulators, not real mainframes.

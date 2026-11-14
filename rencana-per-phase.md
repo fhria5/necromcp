@@ -92,9 +92,33 @@ Exit TERCAPAI: 3 skenario (eksekusi standar, HITL $50.000, serangan XXE/SQLi) ja
 Exit: bug 0.29 ter-shrink ke minimal counterexample + patch mengembalikan
 100/100, terverifikasi di browser dan server. ✅
 
-## Phase 4 — Polish + uji HP user
-.kiro lengkap + terverifikasi, UI gothic final, tes regresi, uji HP user.
-Exit: user menyatakan sempurna.
+## Phase 4 — Polish + uji HP user — SELESAI 14 Nov
+- Favicon buatan sendiri: `public/favicon.svg` + `public/favicon.ico` (sigil ☠
+  hijau ectoplasm di atas abyss, digambar lokal via PIL — tanpa unduhan
+  internet); 404 favicon jinak hilang, terverifikasi 200 di server lokal dan
+  di E2E.
+- Penanda versi ke Phase 4: title, brand, pill, node 4, footer, server health
+  `mode: phase-4`; footer tetap menyebut simulator lokal / bukan mainframe
+  sungguhan (batas jujur dipertahankan).
+- Aksesibilitas + responsif: `:focus-visible` outline ectoplasm,
+  `prefers-reduced-motion` mematikan transisi progress; tap target ≥44px
+  (tab, Call Tool, scenario, Run PBT, approve/deny; checkbox demon 20px);
+  probe Playwright: tanpa overflow horizontal di 390px maupun 1280px;
+  layout 3 kolom di desktop, 1 kolom + pipeline 2 kolom di HP.
+- Audit `.kiro` (9 file lengkap): diperbaiki 3 klaim yang tidak benar —
+  requirements 2.1 (`/api/resurrected/*` tidak pernah ada → rute nyata),
+  design.md (`GET /api/kiro-files` tidak pernah ada → dihapus),
+  settings/mcp.json (`src/engine/mcp-stdio.ts` tidak pernah ada → HTTP `url`
+  ke `/mcp/call`).
+- Tes: Vitest **143/143** (129 lama + 14 baru `tests/phase4-polish.test.ts`);
+  E2E Playwright **Phase 4 16/16** (baru, 390px + 1280px) + **Phase 3 25/25**
+  + **Phase 2 25/25**; `tsc` bersih. Satu temuan tes nyata diperbaiki:
+  tombol Run PBT hanya 40px karena `line-height: normal` bawaan browser pada
+  `<button>` — padding dinaikkan 12px → 14px (approve/deny/patch ikut).
+- Live curl (server lokal :8932): health `mode: phase-4`, index 200,
+  favicon 200.
+Exit Phase 4: user menyatakan sempurna sesudah uji HP dia sendiri — belum
+terjadi; checklist uji HP 9 item disiapkan di laporan Phase 4.
 
 ## Phase 5 — Video + submit
 Video <3 mnt YouTube Public (naskah ada di SPEK.md Part 7), submit kategori

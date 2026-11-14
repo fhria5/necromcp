@@ -165,10 +165,13 @@ function xmlUnescape(value) {
 
 const SOAP_NS = 'xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:tns="urn:mainframe:banking:1998"';
 
-function buildSoapEnvelope(op, args) {
+function buildSoapEnvelope(op, args, opts) {
   const parts = op.inputs.map((f) => {
     const v = args[f.semanticName] == null ? '' : args[f.semanticName];
-    return '<' + f.legacyName + '>' + xmlEscape(v) + '</' + f.legacyName + '>';
+    // Demon Bug (Phase 3): naive raw text, no escaping. The correct adapter
+    // always escapes; only the Exorcist and the UI Demon Bug toggle set this.
+    const text = opts && opts.demonBug ? String(v) : xmlEscape(v);
+    return '<' + f.legacyName + '>' + text + '</' + f.legacyName + '>';
   }).join('');
   return '<soapenv:Envelope ' + SOAP_NS + '><soapenv:Body><tns:' + op.legacyAction + '>' +
     parts + '</tns:' + op.legacyAction + '></soapenv:Body></soapenv:Envelope>';
@@ -213,6 +216,48 @@ function parseSoapResponse(xml) {
     const legacy = part[1];
     const raw = xmlUnescape(part[2]);
     out[semanticNameOf(legacy)] = NUMBER_LEGACY.has(legacy) ? Number(raw) : raw;
+  }
+  return out;
+}
+
+/**
+ * Strict XML well-formedness check for unescaped ampersands — the one thing
+ * a real XML parser rejects that a regex parser silently tolerates. A bare
+ * `&` not starting a valid entity reference is malformed XML, exactly the
+ * fault the Demon Bug introduces by skipping escaping.
+ */
+function assertWellFormedXml(xml) {
+  const stripped = xml.replace(/&(amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);/g, '');
+  const bare = stripped.indexOf('&');
+  if (bare !== -1) {
+    const err = new Error('CorpseCorruptionError: Malformed XML: bare "&" at offset ' + bare + ' (unescaped ampersand).');
+    err.name = 'CorpseCorruptionError';
+    throw err;
+  }
+}
+
+/** Parse a SOAP request envelope back to semantic-name args (mainframe side). */
+function parseSoapRequest(xml, op) {
+  assertWellFormedXml(xml);
+  const bodyRe = new RegExp('<tns:' + op.legacyAction + '>([\\s\\S]*?)</tns:' + op.legacyAction + '>');
+  const bodyMatch = xml.match(bodyRe);
+  if (!bodyMatch) {
+    const err = new Error('CorpseCorruptionError: No <tns:' + op.legacyAction + '> block found in SOAP request.');
+    err.name = 'CorpseCorruptionError';
+    throw err;
+  }
+  const body = bodyMatch[1];
+  const out = {};
+  for (let i = 0; i < op.inputs.length; i++) {
+    const f = op.inputs[i];
+    const m = body.match(new RegExp('<' + f.legacyName + '>([\\s\\S]*?)</' + f.legacyName + '>'));
+    if (!m) {
+      const err = new Error('CorpseCorruptionError: Missing input part "' + f.legacyName + '" in SOAP request.');
+      err.name = 'CorpseCorruptionError';
+      throw err;
+    }
+    const raw = xmlUnescape(m[1]);
+    out[f.semanticName] = f.type === 'number' ? Number(raw) : raw;
   }
   return out;
 }
@@ -588,7 +633,7 @@ function isoToJulian(isoDate) {
   return String(year - 1900).padStart(2, '0') + String(dayOfYear).padStart(3, '0');
 }
 
-function packCobolRecord(fields, args) {
+function packCobolRecord(fields, args, opts) {
   const record = [];
   for (let i = 0; i < 80; i++) record.push(' ');
   for (let i = 0; i < fields.length; i++) {
@@ -606,7 +651,12 @@ function packCobolRecord(fields, args) {
     if (f.type === 'iso_date') {
       text = isoToJulian(String(raw));
     } else if (f.type === 'number' && f.decimals > 0) {
-      const scaled = Math.round((Number(raw) + Number.EPSILON) * Math.pow(10, f.decimals));
+      // Demon Bug (Phase 3): naive Math.floor truncation — 0.29 USD becomes
+      // 28 cents instead of 29. The correct adapter rounds with an EPSILON
+      // nudge, per SPEK 2.3.
+      const scaled = opts && opts.demonBug
+        ? Math.floor(Number(raw) * Math.pow(10, f.decimals))
+        : Math.round((Number(raw) + Number.EPSILON) * Math.pow(10, f.decimals));
       text = String(scaled).padStart(width, '0');
     } else if (f.type === 'number') {
       text = String(Math.trunc(Number(raw))).padStart(width, '0');
@@ -768,7 +818,403 @@ function simulateCobol(op, args, rows, fields) {
   return { wireResponse: match.padEnd(80, ' '), json: parseCobolRecord(match, fields) };
 }
 
-globalThis.NecroEngine = { parseWSDL, buildSoapEnvelope, parseSoapResponse, simulate, CORPSE_01_WSDL, CORPSE_02_SQL, CORPSE_03_DAT, parseSQL, parseCOBOL, cobolDataRows, buildSqlCall, parseSqlResult, packCobolRecord, parseCobolRecord, julianToISO, isoToJulian, sentinelInspect, computeHitlToken, simulateSql, simulateCobol, seedFromString, deriveStockQuantity, deriveUnitCost };
+/* ---- Phase 3 engine: PBT Exorcism (browser mirror of src/engine/exorcist-pbt.ts) ----
+ * Same checks, same minimizers, same report shape as the server engine.
+ * Random inputs come from a seeded mulberry32 PRNG instead of fast-check,
+ * so a seeded run reproduces exactly in the browser and in Node. */
+
+const EXORCISM_SEED = 20261114;
+const EXORCISM_RUNS = 100;
+
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function exorcismNowMs() {
+  return (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+}
+
+function randInt(rng, min, max) {
+  return min + Math.floor(rng() * (max - min + 1));
+}
+
+function randString(rng, chars, minLen, maxLen) {
+  const len = randInt(rng, minLen, maxLen);
+  let s = '';
+  for (let i = 0; i < len; i++) s += chars[Math.floor(rng() * chars.length)];
+  return s;
+}
+
+function randUsd(rng, max) {
+  // 20% trap values (0.29 / 0.57 / 0.58), else uniform 2-decimal amounts.
+  const r = rng();
+  if (r < 0.10) return 0.29;
+  if (r < 0.15) return 0.57;
+  if (r < 0.20) return 0.58;
+  return Math.round((rng() * max + Number.EPSILON) * 100) / 100;
+}
+
+function randIsoDate(rng) {
+  // Day offset from 1989-01-01; covers leap days 1992-02-29 and 1996-02-29.
+  const start = Date.UTC(1989, 0, 1);
+  const days = randInt(rng, 0, 4017);
+  return new Date(start + days * 86400000).toISOString().slice(0, 10);
+}
+
+const EX_DIGITS = '0123456789';
+const EX_ALNUM = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+const EX_MEMO = EX_ALNUM + ' &<>"\'';
+
+function exorcismRandomInput(rng, kind) {
+  if (kind === 'balance') {
+    return {
+      accountNumber: randString(rng, EX_DIGITS, 8, 8),
+      routingCode: randString(rng, EX_DIGITS, 9, 9)
+    };
+  }
+  if (kind === 'wire') {
+    return {
+      sourceAccountNumber: randString(rng, EX_DIGITS, 8, 8),
+      destinationAccountNumber: randString(rng, EX_DIGITS, 8, 8),
+      amountUsd: randUsd(rng, 100),
+      memo: randString(rng, EX_MEMO, 0, 12)
+    };
+  }
+  if (kind === 'sqlQuery') {
+    return {
+      skuCode: randString(rng, EX_ALNUM + '-', 3, 10),
+      warehouseAisle: randString(rng, EX_ALNUM, 1, 4)
+    };
+  }
+  if (kind === 'sqlAudit') {
+    return { maxRatio: Math.round(rng() * 10000) / 10000 };
+  }
+  if (kind === 'sqlMutate') {
+    return {
+      skuCode: randString(rng, EX_ALNUM + '-', 3, 10),
+      deltaQuantity: randInt(rng, -50, 50),
+      authNote: randString(rng, EX_ALNUM + ' ', 0, 20)
+    };
+  }
+  // cobol
+  return {
+    patientId: 'PT' + randString(rng, EX_ALNUM, 8, 8),
+    claimDate: randIsoDate(rng),
+    diagnosisCode: 'ICD' + randInt(rng, 100, 999) + '.' + randInt(rng, 0, 9),
+    claimAmountUsd: randUsd(rng, 99999),
+    adjustmentStatus: ['A', 'P', 'D'][randInt(rng, 0, 2)],
+    memo: randString(rng, EX_MEMO, 0, 47)
+  };
+}
+
+function sameJson(a, b) {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+function exCheckBalance(op, args, demonBug) {
+  const t0 = exorcismNowMs();
+  const legacyJson = simulate(op, args).json;
+  const t1 = exorcismNowMs();
+  const legacy = JSON.stringify(legacyJson);
+  try {
+    const envelope = buildSoapEnvelope(op, args, { demonBug });
+    const parsed = parseSoapRequest(envelope, op);
+    const result = simulate(op, parsed);
+    const back = parseSoapResponse(result.responseXml);
+    const t2 = exorcismNowMs();
+    return { equal: sameJson(back, legacyJson), legacy, resurrected: JSON.stringify(back), legacyMs: t1 - t0, adapterMs: t2 - t1 };
+  } catch (e) {
+    const t2 = exorcismNowMs();
+    return { equal: false, legacy, resurrected: 'ERROR: ' + (e.message || String(e)), legacyMs: t1 - t0, adapterMs: t2 - t1 };
+  }
+}
+
+function exCheckWireTransfer(op, args, demonBug) {
+  const t0 = exorcismNowMs();
+  const legacyJson = simulate(op, args).json;
+  const t1 = exorcismNowMs();
+  const legacy = JSON.stringify(legacyJson);
+  try {
+    const wireArgs = demonBug
+      ? Object.assign({}, args, { amountUsd: Math.floor(Number(args.amountUsd) * 100) / 100 })
+      : args;
+    const envelope = buildSoapEnvelope(op, wireArgs, { demonBug });
+    const parsed = parseSoapRequest(envelope, op);
+    const result = simulate(op, parsed);
+    const back = parseSoapResponse(result.responseXml);
+    const t2 = exorcismNowMs();
+    return { equal: sameJson(back, legacyJson), legacy, resurrected: JSON.stringify(back), legacyMs: t1 - t0, adapterMs: t2 - t1 };
+  } catch (e) {
+    const t2 = exorcismNowMs();
+    return { equal: false, legacy, resurrected: 'ERROR: ' + (e.message || String(e)), legacyMs: t1 - t0, adapterMs: t2 - t1 };
+  }
+}
+
+function exCheckSql(op, args) {
+  const t0 = exorcismNowMs();
+  const legacyJson = simulateSql(op, args).json;
+  const t1 = exorcismNowMs();
+  const legacy = JSON.stringify(legacyJson);
+  try {
+    const call = buildSqlCall(op, args);
+    const execArgs = {};
+    op.inputs.forEach((f, i) => { execArgs[f.semanticName] = call.params[i]; });
+    const result = simulateSql(op, execArgs);
+    const row = JSON.parse(result.wireResponse)[0];
+    const back = parseSqlResult(row, op);
+    const t2 = exorcismNowMs();
+    return { equal: sameJson(back, legacyJson), legacy, resurrected: JSON.stringify(back), legacyMs: t1 - t0, adapterMs: t2 - t1 };
+  } catch (e) {
+    const t2 = exorcismNowMs();
+    return { equal: false, legacy, resurrected: 'ERROR: ' + (e.message || String(e)), legacyMs: t1 - t0, adapterMs: t2 - t1 };
+  }
+}
+
+function exCheckCobolClaim(fields, args, demonBug) {
+  const t0 = exorcismNowMs();
+  const legacy = JSON.stringify(parseCobolRecord(packCobolRecord(fields, args), fields));
+  const t1 = exorcismNowMs();
+  try {
+    const back = parseCobolRecord(packCobolRecord(fields, args, { demonBug }), fields);
+    const t2 = exorcismNowMs();
+    return { equal: sameJson(back, JSON.parse(legacy)), legacy, resurrected: JSON.stringify(back), legacyMs: t1 - t0, adapterMs: t2 - t1 };
+  } catch (e) {
+    const t2 = exorcismNowMs();
+    return { equal: false, legacy, resurrected: 'ERROR: ' + (e.message || String(e)), legacyMs: t1 - t0, adapterMs: t2 - t1 };
+  }
+}
+
+function exSmallestFailingCents(wireOp, base) {
+  for (let cents = 1; cents <= 100; cents++) {
+    const outcome = exCheckWireTransfer(wireOp, Object.assign({}, base, { amountUsd: cents / 100 }), true);
+    if (!outcome.equal) return cents / 100;
+  }
+  return -1;
+}
+
+function exSmallestFailingMemo(wireOp, base) {
+  const candidates = ['&', '<', '>', '"', "'"];
+  for (let i = 0; i < candidates.length; i++) {
+    const outcome = exCheckWireTransfer(
+      wireOp,
+      Object.assign({}, base, { amountUsd: 0.29, memo: candidates[i] }),
+      true,
+    );
+    if (!outcome.equal) return candidates[i];
+  }
+  return '';
+}
+
+function exSmallestFailingCobolCents(fields, base) {
+  for (let cents = 1; cents <= 100; cents++) {
+    const outcome = exCheckCobolClaim(fields, Object.assign({}, base, { claimAmountUsd: cents / 100 }), true);
+    if (!outcome.equal) return cents / 100;
+  }
+  return -1;
+}
+
+/**
+ * Run the PBT exorcism for one artifact in the browser (no fast-check here:
+ * inputs come from a seeded mulberry32 PRNG). Same report shape as the
+ * server engine, so the UI and the parity tests can compare them directly.
+ */
+function runExorcism(artifactId, opts) {
+  opts = opts || {};
+  const demonBug = opts.injectDemonBug === true;
+  const applyPatch = opts.applyPatch === true;
+  const seed = opts.seed != null ? opts.seed : EXORCISM_SEED;
+  const numRuns = opts.numRuns != null ? opts.numRuns : EXORCISM_RUNS;
+
+  const schemas = {
+    'corpse-01-banking-soap': parseWSDL(CORPSE_01_WSDL),
+    'corpse-02-inventory-sql': parseSQL(CORPSE_02_SQL),
+    'corpse-03-cobol-claims': parseCOBOL(CORPSE_03_DAT)
+  };
+  const schema = schemas[artifactId];
+  if (!schema) throw new Error('Unknown artifactId "' + artifactId + '".');
+  const opById = {};
+  schema.operations.forEach((op) => { opById[op.opId] = op; });
+  const cobolFields = schemas['corpse-03-cobol-claims'].cobolFields;
+
+  const rng = mulberry32(seed);
+  const started = exorcismNowMs();
+  let passedRuns = 0;
+  let failedRuns = 0;
+  let legacyTotalMs = 0;
+  let adapterTotalMs = 0;
+  const failures = [];
+
+  // One "run" = one generated input; it passes only when EVERY check for
+  // that input agrees legacy-vs-adapter (totalRuns = 100 per artifact).
+  function checkInput(checks) {
+    let inputFailed = false;
+    for (let i = 0; i < checks.length; i++) {
+      const c = checks[i];
+      const outcome = c.run(demonBug);
+      legacyTotalMs += outcome.legacyMs;
+      adapterTotalMs += outcome.adapterMs;
+      if (!outcome.equal && !inputFailed) {
+        inputFailed = true;
+        failures.push({ propertyFailed: c.propertyFailed, toolName: c.toolName, input: c.input, outcome });
+      }
+    }
+    if (inputFailed) failedRuns += 1;
+    else passedRuns += 1;
+  }
+
+  if (artifactId === 'corpse-01-banking-soap') {
+    const bal = opById.GetAccountBalance;
+    const wire = opById.ExecuteWireTransfer;
+    for (let i = 0; i < numRuns; i++) {
+      const balance = exorcismRandomInput(rng, 'balance');
+      const wireInput = exorcismRandomInput(rng, 'wire');
+      checkInput([
+        { propertyFailed: 'wire-transfer-parity', toolName: 'banking_wire_transfer', input: wireInput, run: (d) => exCheckWireTransfer(wire, wireInput, d) },
+        { propertyFailed: 'balance-parity', toolName: 'banking_get_balance', input: balance, run: (d) => exCheckBalance(bal, balance, d) }
+      ]);
+    }
+  } else if (artifactId === 'corpse-02-inventory-sql') {
+    const query = opById.SP_QUERY_STOCK;
+    const audit = opById.SP_AUDIT_LOW_STOCK;
+    const mutate = opById.SP_MUTATE_INV_QTY;
+    for (let i = 0; i < numRuns; i++) {
+      const q = exorcismRandomInput(rng, 'sqlQuery');
+      const a = exorcismRandomInput(rng, 'sqlAudit');
+      const m = exorcismRandomInput(rng, 'sqlMutate');
+      checkInput([
+        { propertyFailed: 'sql-query-parity', toolName: 'inventory_query_stock', input: q, run: () => exCheckSql(query, q) },
+        { propertyFailed: 'sql-audit-parity', toolName: 'inventory_audit_low_stock', input: a, run: () => exCheckSql(audit, a) },
+        { propertyFailed: 'sql-mutate-parity', toolName: 'inventory_mutate_quantity', input: m, run: () => exCheckSql(mutate, m) }
+      ]);
+    }
+  } else if (artifactId === 'corpse-03-cobol-claims') {
+    for (let i = 0; i < numRuns; i++) {
+      const input = exorcismRandomInput(rng, 'cobol');
+      checkInput([
+        { propertyFailed: 'cobol-claim-parity', toolName: 'claims_lookup_patient', input, run: (d) => exCheckCobolClaim(cobolFields, input, d) }
+      ]);
+    }
+  } else {
+    throw new Error('Unknown artifactId "' + artifactId + '".');
+  }
+
+  const totalRuns = passedRuns + failedRuns;
+  const durationMs = exorcismNowMs() - started;
+  const report = {
+    artifactId,
+    totalRuns,
+    passedRuns,
+    failedRuns,
+    durationMs: Math.round(durationMs * 10) / 10,
+    status: 'VERIFIED_PURE',
+    legacyAvgLatencyMs: Math.round((legacyTotalMs / Math.max(1, totalRuns)) * 1000) / 1000,
+    modernAvgLatencyMs: Math.round((adapterTotalMs / Math.max(1, totalRuns)) * 1000) / 1000,
+    blockedTools: [],
+    seed
+  };
+
+  if (failures.length > 0) {
+    const f = failures[0];
+    let shrunkMinimalInput = f.input;
+    let shrinkSteps = 0;
+    let rootCause = 'Adapter output differs from legacy simulator output.';
+    let autoPatchDiff = '';
+
+    if (artifactId === 'corpse-01-banking-soap' && f.propertyFailed === 'wire-transfer-parity') {
+      const wire = opById.ExecuteWireTransfer;
+      const base = f.input;
+      const smallestCents = exSmallestFailingCents(wire, base);
+      const smallestMemo = exSmallestFailingMemo(wire, base);
+      if (smallestCents > 0 && smallestMemo) {
+        const shrunk = {
+          sourceAccountNumber: String(base.sourceAccountNumber),
+          destinationAccountNumber: String(base.destinationAccountNumber),
+          amountUsd: smallestCents,
+          memo: smallestMemo
+        };
+        shrinkSteps = 2;
+        if (!exCheckWireTransfer(wire, shrunk, true).equal) {
+          shrunkMinimalInput = shrunk;
+        }
+      }
+      rootCause =
+        'Demon Bug: adapter truncates USD amounts with Math.floor(amountUsd * 100) ' +
+        '(0.29 USD posts as 28 cents instead of 29) and leaves XML text unescaped, ' +
+        'so a memo containing "&" produces malformed XML the mainframe rejects.';
+      autoPatchDiff =
+        'Math.floor(amountUsd * 100) -> Math.round((amountUsd + Number.EPSILON) * 100); ' +
+        'raw memo text -> escapeXml(memo) before marshaling.';
+    } else if (artifactId === 'corpse-03-cobol-claims') {
+      const base = f.input;
+      const smallestCents = exSmallestFailingCobolCents(cobolFields, base);
+      if (smallestCents > 0) {
+        const shrunk = Object.assign({}, base, { claimAmountUsd: smallestCents });
+        shrinkSteps = 1;
+        if (!exCheckCobolClaim(cobolFields, shrunk, true).equal) {
+          shrunkMinimalInput = shrunk;
+        }
+      }
+      rootCause =
+        'Demon Bug: adapter scales implied-decimal currency with Math.floor(val * 100) ' +
+        '(0.29 USD packs as 28 cents instead of 29).';
+      autoPatchDiff =
+        'Math.floor(val * 100) -> Math.round((val + Number.EPSILON) * 100) in packCobolRecord.';
+    }
+
+    report.status = applyPatch ? 'PATCHED' : 'DEMON_DETECTED';
+    // Re-run the failing check with the SHRUNK input so the reported
+    // outputs correspond to the minimal counterexample.
+    let legacyOutput = f.outcome.legacy;
+    let resurrectedOutput = f.outcome.resurrected;
+    if (artifactId === 'corpse-01-banking-soap' && f.propertyFailed === 'wire-transfer-parity') {
+      const re = exCheckWireTransfer(opById.ExecuteWireTransfer, shrunkMinimalInput, true);
+      legacyOutput = re.legacy;
+      resurrectedOutput = re.resurrected;
+    } else if (artifactId === 'corpse-03-cobol-claims') {
+      const re = exCheckCobolClaim(cobolFields, shrunkMinimalInput, true);
+      legacyOutput = re.legacy;
+      resurrectedOutput = re.resurrected;
+    }
+    report.counterexample = {
+      propertyFailed: f.propertyFailed,
+      originalFailingInput: f.input,
+      shrunkMinimalInput,
+      shrinkSteps,
+      legacyOutput,
+      resurrectedOutput,
+      rootCause,
+      autoPatchDiff
+    };
+    report.blockedTools = [f.toolName];
+  }
+
+  // Auto-Patch: the demon case was just demonstrated above; re-run the same
+  // inputs with the patched (correct) adapter and require 100/100 green.
+  // The counterexample stays in the report as the record of what was fixed.
+  if (applyPatch && failures.length > 0) {
+    const clean = runExorcism(artifactId, { seed, numRuns });
+    report.totalRuns = clean.totalRuns;
+    report.passedRuns = clean.passedRuns;
+    report.failedRuns = clean.failedRuns;
+    report.durationMs = Math.round((durationMs + clean.durationMs) * 10) / 10;
+    report.legacyAvgLatencyMs = clean.legacyAvgLatencyMs;
+    report.modernAvgLatencyMs = clean.modernAvgLatencyMs;
+    if (clean.failedRuns === 0) {
+      report.status = 'PATCHED';
+      report.blockedTools = [];
+    }
+  }
+
+  return report;
+}
+
+globalThis.NecroEngine = { parseWSDL, buildSoapEnvelope, parseSoapResponse, simulate, CORPSE_01_WSDL, CORPSE_02_SQL, CORPSE_03_DAT, parseSQL, parseCOBOL, cobolDataRows, buildSqlCall, parseSqlResult, packCobolRecord, parseCobolRecord, julianToISO, isoToJulian, sentinelInspect, computeHitlToken, simulateSql, simulateCobol, seedFromString, deriveStockQuantity, deriveUnitCost, parseSoapRequest, assertWellFormedXml, runExorcism, EXORCISM_SEED, EXORCISM_RUNS };
 
 /* ---- Browser UI (guarded: skipped entirely under Node) ---- */
 if (typeof document !== 'undefined') {
@@ -816,6 +1262,12 @@ if (typeof document !== 'undefined') {
   let corpseId = 'corpse-01-banking-soap';
   let callCount = 0;
   let pendingHitl = null;
+
+  // Phase 3: Exorcism state. demonBug injects the faulty adapter into PBT
+  // runs; blockedTools quarantines tools the Exorcist caught until patched.
+  let demonBug = false;
+  const blockedTools = new Set();
+  const exorcismReports = {};
 
   function el(id) { return document.getElementById(id); }
 
@@ -934,7 +1386,13 @@ if (typeof document !== 'undefined') {
     setNodeState(1, 'done', 'Done');
     setNodeState(2, 'done', 'Done');
     setNodeState(3, 'active', 'Ready');
-    setNodeState(4, 'locked', 'Phase 3');
+    const priorReport = exorcismReports[id];
+    if (priorReport) {
+      setNodeState(4, priorReport.status === 'DEMON_DETECTED' ? 'active' : 'done', priorReport.status);
+    } else {
+      setNodeState(4, 'locked', 'Phase 3');
+    }
+    renderExorcismDeck();
   }
 
   function logSentinel(verdict, op) {
@@ -1004,6 +1462,18 @@ if (typeof document !== 'undefined') {
   function executeCall(op, args, hitlToken) {
     const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
     callCount += 1;
+    // 0. Phase 3 quarantine: a tool the Exorcist caught stays dark until
+    // Auto-Patch restores it.
+    if (blockedTools.has(op.mcpToolName)) {
+      const t1 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+      const verdict = {
+        ruleId: 'DEMON_DETECTED',
+        reason: 'Tool quarantined by the Exorcist: property-based testing detected the Demon Bug in this adapter. Run Auto-Patch to restore it.',
+        field: op.mcpToolName
+      };
+      renderOutcome({ status: 'BLOCKED_SECURITY', verdict, wirePayload: '', json: {} }, op, args, t1 - t0);
+      return { status: 'BLOCKED_SECURITY', verdict };
+    }
     // 1. Sentinel FIRST: blocked calls never reach the wire marshaler.
     const verdict = sentinelInspect(args);
     if (verdict.blocked) {
@@ -1147,6 +1617,68 @@ if (typeof document !== 'undefined') {
     setNodeState(3, 'active', 'Denied');
   }
 
+  /* ---- Phase 3: PBT Exorcism deck ---- */
+
+  function renderExorcismDeck() {
+    const report = exorcismReports[corpseId];
+    const resultEl = el('exorcism-result');
+    const patchBtn = el('exorcism-patch');
+    const progress = el('exorcism-progress');
+    progress.hidden = true;
+    if (!report) {
+      resultEl.innerHTML = '<span class="result-empty">No exorcism run yet for this corpse.</span>';
+      patchBtn.hidden = true;
+      return;
+    }
+    const pct = report.totalRuns ? Math.round((report.passedRuns / report.totalRuns) * 100) : 0;
+    progress.hidden = false;
+    el('exorcism-progress-fill').style.width = pct + '%';
+    const bar = el('exorcism-progress-bar');
+    bar.setAttribute('aria-valuenow', String(pct));
+    el('exorcism-progress-text').textContent =
+      report.passedRuns + ' / ' + report.totalRuns + ' runs passed · ' + report.durationMs + ' ms';
+    let html = '';
+    if (report.status === 'VERIFIED_PURE') {
+      html = '<span class="result-ok">VERIFIED_PURE — ' + report.passedRuns + '/' + report.totalRuns + ' runs green</span>\n' +
+        'Legacy ' + report.legacyAvgLatencyMs + ' ms vs adapter ' + report.modernAvgLatencyMs + ' ms per run.';
+      patchBtn.hidden = true;
+    } else if (report.status === 'DEMON_DETECTED') {
+      const ce = report.counterexample;
+      html = '<span class="result-blocked">DEMON_DETECTED — ' + report.failedRuns + '/' + report.totalRuns + ' runs failed</span>\n' +
+        'Property: ' + escapeHtml(ce.propertyFailed) + '\n' +
+        'Minimal counterexample: ' + escapeHtml(JSON.stringify(ce.shrunkMinimalInput)) + '\n' +
+        'Legacy: ' + escapeHtml(ce.legacyOutput) + '\n' +
+        'Adapter: ' + escapeHtml(ce.resurrectedOutput) + '\n' +
+        'Root cause: ' + escapeHtml(ce.rootCause) + '\n' +
+        'Quarantined: ' + escapeHtml(report.blockedTools.join(', '));
+      patchBtn.hidden = false;
+    } else {
+      // PATCHED — the counterexample stays as the record of what was fixed.
+      const ce = report.counterexample;
+      html = '<span class="result-ok">PATCHED — ' + report.passedRuns + '/' + report.totalRuns + ' runs green after Auto-Patch</span>\n' +
+        (ce ? 'Fixed: ' + escapeHtml(ce.autoPatchDiff) + '\n' : '') +
+        'Legacy ' + report.legacyAvgLatencyMs + ' ms vs adapter ' + report.modernAvgLatencyMs + ' ms per run.';
+      patchBtn.hidden = true;
+    }
+    resultEl.innerHTML = html;
+  }
+
+  function runExorcismUI(applyPatch) {
+    const report = runExorcism(corpseId, { injectDemonBug: demonBug, applyPatch: !!applyPatch });
+    exorcismReports[corpseId] = report;
+    if (report.status === 'DEMON_DETECTED') {
+      report.blockedTools.forEach((t) => blockedTools.add(t));
+      setNodeState(4, 'active', 'DEMON_DETECTED');
+    } else if (report.status === 'PATCHED') {
+      ast.operations.forEach((op) => blockedTools.delete(op.mcpToolName));
+      setNodeState(4, 'done', 'PATCHED');
+    } else {
+      setNodeState(4, 'done', 'VERIFIED_PURE');
+    }
+    renderExorcismDeck();
+    return report;
+  }
+
   function switchTab(which) {
     const rawTab = el('tab-raw');
     const earsTab = el('tab-ears');
@@ -1182,6 +1714,9 @@ if (typeof document !== 'undefined') {
     el('scenario-attack').addEventListener('click', () => runScenario('attack'));
     el('hitl-approve').addEventListener('click', approveHitl);
     el('hitl-deny').addEventListener('click', denyHitl);
+    el('demon-toggle').addEventListener('change', (e) => { demonBug = e.target.checked; });
+    el('exorcism-run').addEventListener('click', () => runExorcismUI(false));
+    el('exorcism-patch').addEventListener('click', () => runExorcismUI(true));
     selectCorpse('corpse-01-banking-soap');
   }
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>The Necromancer's Altar — NecroMCP Phase 2</title>
+<title>The Necromancer's Altar — NecroMCP Phase 3</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
@@ -15,7 +15,7 @@
     <span class="brand-sigil" aria-hidden="true">&#9760;</span>
     <div class="brand-text">
       <h1>NecroMCP</h1>
-      <p class="brand-sub">The Necromancer&rsquo;s Altar &mdash; Phase 2</p>
+      <p class="brand-sub">The Necromancer&rsquo;s Altar &mdash; Phase 3</p>
     </div>
   </div>
   <div class="pills" role="status" aria-label="System status">
@@ -143,6 +143,28 @@
         <span class="log-empty">No blocked calls yet. Run scenario 3 to see Sentinel work.</span>
       </div>
     </div>
+
+    <div class="exorcism-block" id="exorcism-block">
+      <h2>PBT Exorcism</h2>
+      <p class="scenario-hint">100 property-based runs compare the legacy simulator with the resurrected adapter. Flip the Demon Bug on to inject the faulty adapter — then watch fast-check catch it.</p>
+      <label class="demon-toggle" for="demon-toggle">
+        <input type="checkbox" id="demon-toggle">
+        <span>Demon Bug &mdash; Math.floor cents + unescaped XML</span>
+      </label>
+      <div class="exorcism-actions">
+        <button type="button" id="exorcism-run" class="btn-exorcise">Run PBT (100 runs)</button>
+        <button type="button" id="exorcism-patch" class="btn-patch" hidden>Auto-Patch</button>
+      </div>
+      <div class="exorcism-progress" id="exorcism-progress" hidden>
+        <div class="progress-bar" role="progressbar" aria-label="PBT run progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="exorcism-progress-bar">
+          <div class="progress-fill" id="exorcism-progress-fill"></div>
+        </div>
+        <p id="exorcism-progress-text" class="progress-text"></p>
+      </div>
+      <div id="exorcism-result" class="exorcism-result" aria-live="polite">
+        <span class="result-empty">No exorcism run yet for this corpse.</span>
+      </div>
+    </div>
   </section>
 
   <!-- Zone 4: right panel -->
@@ -164,7 +186,7 @@
 </main>
 
 <footer class="footer">
-  <p>Simulator lokal &mdash; bukan mainframe sungguhan. NecroMCP Phase 2 &middot; 3 corpses resurrected (SOAP 1998, SQL 2004, COBOL 1989) &middot; Sentinel + HITL live &middot; Local simulator, not a real mainframe.</p>
+  <p>Simulator lokal &mdash; bukan mainframe sungguhan. NecroMCP Phase 3 &middot; 3 corpses resurrected (SOAP 1998, SQL 2004, COBOL 1989) &middot; Sentinel + HITL live &middot; PBT Exorcism live &middot; Local simulator, not a real mainframe.</p>
 </footer>
 
 <script src="app.js"></script>

@@ -1,0 +1,15 @@
+{
+  "name": "Exorcist PBT Parity Gatekeeper",
+  "description": "Executes 100 fast-check property-based parity tests automatically whenever any adapter or translator code is saved",
+  "trigger": {
+    "event": "onFileSave",
+    "filePattern": "src/engine/**/*.ts"
+  },
+  "actions": [
+    {
+      "type": "command",
+      "command": "npm run test:pbt"
+    }
+  ],
+  "enabled": true
+}

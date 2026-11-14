@@ -6,10 +6,12 @@ Feed it a legacy artifact — 1998 SOAP/WSDL banking, 2004 SQL warehouse DDL,
 REST API + live MCP server, then proves behavioral parity with Property-Based
 Testing ("Exorcism": 100 fast-check runs, counterexample shrinking, auto-patch).
 
-- **Status:** Phase 1 MVP SELESAI 14 Nov ~18:35 — parser SOAP + AST + REST + UI
-  skeleton (Mode B statis). Demo live: https://fhria5.github.io/necromcp/
-  (preset "1998 SOAP Core Bank" jalan end-to-end di browser).
-  Tes: 42/42 vitest, Playwright E2E 13/13, live curl terverifikasi.
+- **Status:** Phase 2 SELESAI 14 Nov — 3 corpse + MCP + Sentinel + HITL.
+  Demo live: https://fhria5.github.io/necromcp/ (ketiga preset jalan end-to-end
+  di browser; 3 skenario playground: eksekusi standar, HITL $50.000,
+  serangan XXE/SQLi yang diblokir Sentinel).
+  Tes: 100/100 vitest (42 Phase 1 + 58 Phase 2), Playwright E2E + live curl
+  terverifikasi.
 - **Build rule:** build langsung di Muse atas perintah user 'Langsung jalan'
   (14 Nov ~18:27); Kiro Web TIDAK dipakai untuk build.
 - **Honesty rule:** the "mainframes" are local simulators, not real mainframes.

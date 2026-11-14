@@ -27,6 +27,8 @@ FILES = [
     'src/engine/synthesizer.ts',
     'src/engine/translator.ts',
     'src/engine/simulator.ts',
+    'src/engine/sentinel.ts',
+    'src/engine/hitl.ts',
     'src/server.ts',
     'public/index.html',
     'public/styles.css',
@@ -35,11 +37,19 @@ FILES = [
     'docs/styles.css',
     'docs/app.js',
     'tests/parser.test.ts',
+    'tests/parser-sql.test.ts',
+    'tests/parser-cobol.test.ts',
     'tests/translator.test.ts',
+    'tests/translator-sql.test.ts',
+    'tests/translator-cobol.test.ts',
     'tests/simulator.test.ts',
+    'tests/simulator-phase2.test.ts',
     'tests/synthesizer.test.ts',
+    'tests/sentinel.test.ts',
+    'tests/hitl.test.ts',
     'tests/server.test.ts',
     'tests/browser-engine.test.ts',
+    'tests/e2e-phase2.cjs',
     'tools/deploy_necromcp.py',
     '.kiro/specs/necro-engine/tasks.md',
 ]
@@ -87,7 +97,7 @@ for f in FILES:
         else:
             raise
     body = {
-        'message': 'NecroMCP Phase 1 MVP: SOAP parser + AST + REST + Mode B static UI',
+        'message': 'NecroMCP Phase 2: SQL + COBOL parsers, Sentinel, HITL, 3 scenarios',
         'content': base64.b64encode(data).decode(),
         'branch': BRANCH,
     }

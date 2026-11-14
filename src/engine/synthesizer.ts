@@ -15,6 +15,8 @@ function zodField(field: NormalizedField): z.ZodTypeAny {
       let n = z.number().finite();
       // A transfer amount must be a positive, finite number.
       if (field.semanticName === 'amountUsd') n = n.positive();
+      // A stock ratio is a fraction between 0 and 1.
+      if (field.semanticName === 'maxRatio') n = n.min(0).max(1);
       return field.constraints.required ? n : n.optional();
     }
     case 'boolean':
@@ -57,7 +59,9 @@ function zodFieldCode(field: NormalizedField): string {
     case 'number':
       return field.semanticName === 'amountUsd'
         ? `z.number().finite().positive()`
-        : `z.number().finite()`;
+        : field.semanticName === 'maxRatio'
+          ? `z.number().finite().min(0).max(1)`
+          : `z.number().finite()`;
     case 'boolean':
       return `z.boolean()`;
     case 'iso_date':

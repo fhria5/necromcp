@@ -20,8 +20,10 @@ specifications.
 modern REST routes and MCP tools from the normalized AST so that LLM agents can
 interact with legacy systems seamlessly.
 - **2.1** WHEN a `NecroIntermediateSchema` is synthesized, THE SYSTEM SHALL
-  generate runtime Zod validation schemas and mount REST endpoints under
-  `/api/resurrected/:artifactId/*`.
+  generate runtime Zod validation schemas and expose it via the implemented
+  REST surface: `POST /api/resurrect`, `POST /api/exorcise`, `GET /mcp/tools`,
+  `POST /mcp/call` (corrected Phase 4 — the earlier `/api/resurrected/*`
+  route was never implemented).
 - **2.2** WHEN endpoints are mounted, THE SYSTEM SHALL expose MCP-compliant tool
   definitions via JSON-RPC 2.0 `tools/list` with clear semantic parameter names
   mapped to legacy fields.

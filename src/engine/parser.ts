@@ -204,3 +204,378 @@ export function parseWSDL(rawSource: string, meta: ParseMeta): NecroIntermediate
   schema.generatedZodCode = generateZodCode(schema);
   return schema;
 }
+
+/* ------------------------------------------------------------------ */
+/* SQL DDL parser (Phase 2): CREATE TABLE + stored-procedure comments  */
+/* ------------------------------------------------------------------ */
+
+/** Curated semantic names for the warehouse table columns. */
+const SQL_COLUMN_SEMANTIC: Record<string, string> = {
+  SKU_CD_V2: 'skuCode',
+  PART_DESC_TXT: 'partDescription',
+  INV_QTY_OH: 'quantityOnHand',
+  REORD_THRSH_NUM: 'reorderThreshold',
+  UNIT_CST_USD: 'unitCostUsd',
+  LOC_WH_AISLE: 'warehouseAisle',
+};
+
+/** Curated semantic names for stored-procedure parameters (@P_...). */
+const SQL_PARAM_SEMANTIC: Record<string, string> = {
+  P_SKU_CD: 'skuCode',
+  P_WH_AISLE: 'warehouseAisle',
+  P_MAX_RATIO: 'maxRatio',
+  P_DELTA_QTY: 'deltaQuantity',
+  P_AUTH_NOTE: 'authNote',
+};
+
+/** Procedure metadata: MCP tool name, risk, and human description. */
+const SQL_PROCEDURES: Record<
+  string,
+  { mcpToolName: string; riskLevel: 'LOW' | 'MEDIUM' | 'CRITICAL'; description: string }
+> = {
+  SP_QUERY_STOCK: {
+    mcpToolName: 'inventory_query_stock',
+    riskLevel: 'LOW',
+    description: 'Query the on-hand stock of one warehouse part',
+  },
+  SP_AUDIT_LOW_STOCK: {
+    mcpToolName: 'inventory_audit_low_stock',
+    riskLevel: 'LOW',
+    description: 'Audit how many warehouse parts sit below their reorder threshold',
+  },
+  SP_MUTATE_INV_QTY: {
+    mcpToolName: 'inventory_mutate_quantity',
+    riskLevel: 'MEDIUM',
+    description: 'Adjust the on-hand quantity of one warehouse part',
+  },
+};
+
+function sqlTypeToFieldType(sqlType: string): NormalizedField['type'] | undefined {
+  const t = sqlType.trim().toUpperCase();
+  if (t.startsWith('VARCHAR') || t.startsWith('CHAR') || t.startsWith('TEXT')) return 'string';
+  if (t === 'INT' || t === 'INTEGER' || t === 'BIGINT' || t === 'SMALLINT') return 'number';
+  if (t.startsWith('DECIMAL') || t.startsWith('NUMERIC') || t.startsWith('MONEY')) return 'number';
+  if (t === 'BIT' || t.startsWith('BOOLEAN')) return 'boolean';
+  if (t.startsWith('DATE') || t.startsWith('DATETIME')) return 'iso_date';
+  return undefined;
+}
+
+function sqlParamToSemantic(param: string): string {
+  const known = SQL_PARAM_SEMANTIC[param];
+  if (known) return known;
+  const cleaned = param.replace(/^P_/, '');
+  const parts = cleaned.toLowerCase().split('_').filter(Boolean);
+  return parts.map((p, i) => (i === 0 ? p : p[0].toUpperCase() + p.slice(1))).join('');
+}
+
+/** Parse one stored-procedure comment line into name + parameter names. */
+function parseProcedureLine(
+  line: string,
+): { name: string; params: string[] } | undefined {
+  const m = line.match(/PROCEDURE:\s*([A-Z0-9_]+)\s*\(Inputs:\s*([^)]*)\)/i);
+  if (!m) return undefined;
+  const params = m[2]
+    .split(',')
+    .map((p) => p.trim().replace(/^@/, ''))
+    .filter(Boolean);
+  return { name: m[1].toUpperCase(), params };
+}
+
+export function parseSQL(rawSource: string, meta: ParseMeta): NecroIntermediateSchema {
+  if (!rawSource || !rawSource.trim()) {
+    throw new CorpseCorruptionError('Empty legacy artifact: nothing to parse.');
+  }
+  const tableMatch = rawSource.match(
+    /CREATE\s+TABLE\s+([A-Z0-9_]+)\s*\(([\s\S]*?)\);/i,
+  );
+  if (!tableMatch) {
+    throw new CorpseCorruptionError(
+      'Not a SQL DDL dump: no CREATE TABLE statement found.',
+    );
+  }
+  const [, tableName, columnBlock] = tableMatch;
+
+  // Columns: NAME TYPE [NOT NULL] [PRIMARY KEY] [DEFAULT x], -- comment
+  const columns: NormalizedField[] = [];
+  for (const rawLine of columnBlock.split('\n')) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    const colMatch = line.match(
+      /^([A-Z0-9_]+)\s+([A-Z]+(?:\(\s*\d+(?:\s*,\s*\d+)?\s*\))?)\s*(.*?)(?:,)?\s*(?:--\s*(.*))?$/,
+    );
+    if (!colMatch) {
+      throw new CorpseCorruptionError(
+        `Malformed column definition in table "${tableName}": "${line}".`,
+      );
+    }
+    const [, colName, colType, modifiers, comment] = colMatch;
+    const fieldType = sqlTypeToFieldType(colType);
+    if (!fieldType) {
+      throw new CorpseCorruptionError(
+        `Unsupported SQL type "${colType}" on column "${colName}".`,
+      );
+    }
+    const maxLengthMatch = colType.match(/\((\d+)\)/);
+    columns.push({
+      legacyName: colName,
+      semanticName: SQL_COLUMN_SEMANTIC[colName] ?? toSemanticName(colName),
+      type: fieldType,
+      constraints: {
+        required: /NOT NULL/i.test(modifiers ?? ''),
+        ...(maxLengthMatch ? { maxLength: Number(maxLengthMatch[1]) } : {}),
+      },
+      description: (comment ?? colName).trim(),
+    });
+  }
+  if (columns.length === 0) {
+    throw new CorpseCorruptionError(`Table "${tableName}" declares no columns.`);
+  }
+
+  const procedures: { name: string; params: string[] }[] = [];
+  for (const line of rawSource.split('\n')) {
+    const proc = parseProcedureLine(line);
+    if (proc) procedures.push(proc);
+  }
+  if (procedures.length === 0) {
+    throw new CorpseCorruptionError(
+      'No stored PROCEDURE declarations found in SQL DDL dump.',
+    );
+  }
+
+  const operations: NormalizedOperation[] = [];
+  for (const proc of procedures) {
+    const procMeta = SQL_PROCEDURES[proc.name];
+    if (!procMeta) {
+      throw new CorpseCorruptionError(
+        `Unknown stored procedure "${proc.name}": no MCP mapping defined.`,
+      );
+    }
+    const inputs: NormalizedField[] = proc.params.map((p) => {
+      const semantic = sqlParamToSemantic(p);
+      // maxRatio is a 0..1 fraction; deltaQuantity is an integer delta.
+      const type: NormalizedField['type'] =
+        semantic === 'maxRatio' || semantic === 'deltaQuantity' ? 'number' : 'string';
+      return {
+        legacyName: `@${p}`,
+        semanticName: semantic,
+        type,
+        constraints: {
+          required: true,
+          ...(semantic === 'maxRatio' ? { min: 0, max: 1 } : {}),
+        },
+        description: `Procedure parameter ${p}`,
+      };
+    });
+    // Result shape is the documented procedure result: query returns the full
+    // table row, audit returns a summary, mutate returns the updated row.
+    const outputs: NormalizedField[] =
+      proc.name === 'SP_AUDIT_LOW_STOCK'
+        ? [
+            {
+              legacyName: 'ITEMS_BELOW_THRSH',
+              semanticName: 'itemsBelowThreshold',
+              type: 'number',
+              constraints: { required: true },
+              description: 'Parts below their reorder threshold',
+            },
+            {
+              legacyName: 'TOTAL_ITEMS',
+              semanticName: 'totalItems',
+              type: 'number',
+              constraints: { required: true },
+              description: 'Total parts in the warehouse',
+            },
+            {
+              legacyName: 'LOW_STOCK_RATIO',
+              semanticName: 'lowStockRatio',
+              type: 'number',
+              constraints: { required: true },
+              description: 'Share of parts below threshold (0..1)',
+            },
+          ]
+        : proc.name === 'SP_MUTATE_INV_QTY'
+          ? [
+              columns.find((c) => c.semanticName === 'skuCode')!,
+              columns.find((c) => c.semanticName === 'quantityOnHand')!,
+              {
+                legacyName: '@P_DELTA_QTY',
+                semanticName: 'deltaQuantity',
+                type: 'number',
+                constraints: { required: true },
+                description: 'Quantity delta that was applied',
+              },
+            ]
+          : [...columns];
+    operations.push({
+      opId: proc.name,
+      legacyAction: proc.name,
+      mcpToolName: procMeta.mcpToolName,
+      description: procMeta.description,
+      riskLevel: procMeta.riskLevel,
+      inputs,
+      outputs,
+    });
+  }
+
+  const schema: NecroIntermediateSchema = {
+    artifactId: meta.artifactId,
+    title: meta.title,
+    era: meta.era,
+    format: 'SQL_DDL',
+    rawSource,
+    extractedAt: new Date().toISOString(),
+    operations,
+    generatedEarsSpec: '',
+    generatedZodCode: '',
+  };
+  schema.generatedEarsSpec = generateEarsSpec(schema);
+  schema.generatedZodCode = generateZodCode(schema);
+  return schema;
+}
+
+/* ------------------------------------------------------------------ */
+/* COBOL fixed-width parser (Phase 2): copybook layout + data rows    */
+/* ------------------------------------------------------------------ */
+
+/** Curated semantic names for the copybook fields. */
+const COBOL_FIELD_SEMANTIC: Record<string, string> = {
+  'PT-ID-NUM': 'patientId',
+  'CLM-JUL-DT': 'claimDate',
+  'ICD9-DIAG-CD': 'diagnosisCode',
+  'CLM-AMT-CENTS': 'claimAmountUsd',
+  'ADJ-STAT-FLG': 'adjustmentStatus',
+  'FILLER-MEMO': 'memo',
+};
+
+export interface CobolField extends NormalizedField {
+  /** 1-based inclusive byte range in the 80-byte record. */
+  byteRange: [number, number];
+  /** Raw PIC clause, e.g. "X(10)" or "9(07)V99". */
+  pic: string;
+  /** Number of implied decimal places (from V99), 0 for plain integers/text. */
+  decimals: number;
+}
+
+function parsePic(pic: string): { kind: 'text' | 'number'; length: number; decimals: number } {
+  const textMatch = pic.match(/^X\((\d+)\)$/i);
+  if (textMatch) return { kind: 'text', length: Number(textMatch[1]), decimals: 0 };
+  const numMatch = pic.match(/^9\((\d+)\)(?:V(9+))?$/i);
+  if (numMatch) {
+    return {
+      kind: 'number',
+      length: Number(numMatch[1]) + (numMatch[2] ? numMatch[2].length : 0),
+      decimals: numMatch[2] ? numMatch[2].length : 0,
+    };
+  }
+  throw new CorpseCorruptionError(`Unsupported PIC clause "${pic}".`);
+}
+
+/** Data rows of the flat file: every non-comment, non-empty line. */
+export function cobolDataRows(rawSource: string): string[] {
+  return rawSource
+    .split('\n')
+    .map((l) => l.replace(/\r$/, ''))
+    .filter((l) => l.trim() !== '' && !l.startsWith('*'));
+}
+
+export function parseCOBOL(
+  rawSource: string,
+  meta: ParseMeta,
+): NecroIntermediateSchema & { cobolFields: CobolField[] } {
+  if (!rawSource || !rawSource.trim()) {
+    throw new CorpseCorruptionError('Empty legacy artifact: nothing to parse.');
+  }
+  const fields: CobolField[] = [];
+  for (const line of rawSource.split('\n')) {
+    const m = line.match(
+      /^\*\s*BYTES\s+(\d+)-(\d+)\s*:\s*([A-Z0-9-]+)\s+PIC\s+(X\(\d+\)|9\(\d+\)(?:V9+)?)\s*\[(.*?)\]/,
+    );
+    if (!m) continue;
+    const [, startS, endS, name, pic, description] = m;
+    const start = Number(startS);
+    const end = Number(endS);
+    const parsed = parsePic(pic);
+    if (end - start + 1 !== parsed.length) {
+      throw new CorpseCorruptionError(
+        `Copybook field "${name}" declares BYTES ${start}-${end} (${end - start + 1} bytes) but PIC ${pic} is ${parsed.length} bytes.`,
+      );
+    }
+    const isJulian = /JUL/i.test(name);
+    fields.push({
+      legacyName: name,
+      semanticName: COBOL_FIELD_SEMANTIC[name] ?? toSemanticName(name.replace(/-/g, '_')),
+      type: isJulian ? 'iso_date' : parsed.kind === 'text' ? 'string' : 'number',
+      constraints: {
+        required: true,
+        byteOffset: [start - 1, end] as [number, number],
+      },
+      description: description.trim(),
+      byteRange: [start, end],
+      pic,
+      decimals: parsed.decimals,
+    });
+  }
+  if (fields.length === 0) {
+    throw new CorpseCorruptionError(
+      'Not a COBOL copybook: no BYTES layout lines found.',
+    );
+  }
+  const rows = cobolDataRows(rawSource);
+  if (rows.length === 0) {
+    throw new CorpseCorruptionError('COBOL flat file contains no data rows.');
+  }
+  // Rows are right-trimmed in the file (trailing spaces stripped), so only the
+  // bytes up to the last non-space field must be present.
+  const minLength = Math.max(
+    ...fields
+      .filter((f) => f.semanticName !== 'memo')
+      .map((f) => f.byteRange[1]),
+  );
+  for (const row of rows) {
+    if (row.length < minLength) {
+      throw new CorpseCorruptionError(
+        `COBOL data row too short (${row.length} bytes, need at least ${minLength}): "${row}".`,
+      );
+    }
+  }
+
+  const op: NormalizedOperation = {
+    opId: 'LookupClaimByPatient',
+    legacyAction: 'LOOKUP-CLAIM-BY-PATIENT',
+    mcpToolName: 'claims_lookup_patient',
+    description: 'Look up one healthcare claim record by patient identifier',
+    riskLevel: 'LOW',
+    inputs: [
+      {
+        legacyName: 'PT-ID-NUM',
+        semanticName: 'patientId',
+        type: 'string',
+        constraints: { required: true, maxLength: 10 },
+        description: 'Patient Identifier',
+      },
+    ],
+    outputs: fields.map((f) => ({
+      legacyName: f.legacyName,
+      semanticName: f.semanticName,
+      type: f.type,
+      constraints: f.constraints,
+      description: f.description,
+    })),
+  };
+
+  const schema: NecroIntermediateSchema & { cobolFields: CobolField[] } = {
+    artifactId: meta.artifactId,
+    title: meta.title,
+    era: meta.era,
+    format: 'FIXED_WIDTH',
+    rawSource,
+    extractedAt: new Date().toISOString(),
+    operations: [op],
+    generatedEarsSpec: '',
+    generatedZodCode: '',
+    cobolFields: fields,
+  };
+  schema.generatedEarsSpec = generateEarsSpec(schema);
+  schema.generatedZodCode = generateZodCode(schema);
+  return schema;
+}

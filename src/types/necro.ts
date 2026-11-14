@@ -74,3 +74,34 @@ export class CorpseCorruptionError extends Error {
     this.line = line;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* PBT Exorcism report (Phase 3, per SPEK Part 2.2). The "legacy" side */
+/* is the local simulator; the "resurrected" side is the adapter that  */
+/* marshals JSON to the legacy wire format and back.                    */
+/* ------------------------------------------------------------------ */
+
+export interface PBTExorcismReport {
+  artifactId: string;
+  totalRuns: number;
+  passedRuns: number;
+  failedRuns: number;
+  durationMs: number;
+  status: 'VERIFIED_PURE' | 'DEMON_DETECTED' | 'PATCHED';
+  legacyAvgLatencyMs: number;
+  modernAvgLatencyMs: number;
+  counterexample?: {
+    propertyFailed: string;
+    originalFailingInput: Record<string, unknown>;
+    shrunkMinimalInput: Record<string, unknown>;
+    shrinkSteps: number;
+    legacyOutput: string;
+    resurrectedOutput: string;
+    rootCause: string;
+    autoPatchDiff: string;
+  };
+  /** MCP tools quarantined while the demon is detected (exposure halted). */
+  blockedTools: string[];
+  /** fast-check / PRNG seed, so a run is reproducible. */
+  seed: number;
+}

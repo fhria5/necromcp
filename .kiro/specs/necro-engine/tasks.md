@@ -19,13 +19,13 @@ live curl + Playwright E2E verified (see rencana-per-phase.md).
   - [x] 3.2 Build JSON-to-SQL parameterized query generator. — Phase 2
   - [x] 3.3 Build JSON-to-80-byte ASCII fixed-width record packer with `PIC 9(7)V99` implied decimals. — Phase 2
 - [ ] **Task 4: Exorcist Property-Based Testing Engine (`src/engine/exorcist-pbt.ts`)**
-  - [ ] 4.1 Configure `fast-check` arbitraries for round-trip parity invariants. — Phase 3
-  - [ ] 4.2 Implement deterministic Demon Bug injection and minimal counterexample shrinking. — Phase 3
-  - [ ] 4.3 Implement self-healing Auto-Patch state transition. — Phase 3
+  - [x] 4.1 Configure `fast-check` arbitraries for round-trip parity invariants. — Phase 3 (100 run/artifact, seed 20261114; browser mirror: seeded mulberry32 PRNG in `public/app.js`)
+  - [x] 4.2 Implement deterministic Demon Bug injection and minimal counterexample shrinking. — Phase 3 (shrunk to { amountUsd: 0.29, memo: "&" }; tool quarantined from /mcp/tools + /mcp/call)
+  - [x] 4.3 Implement self-healing Auto-Patch state transition. — Phase 3 (PATCHED after re-verify 100/100; `POST /api/exorcise`)
 - [ ] **Task 5: Sentinel Security Guardrails (`src/engine/sentinel.ts`)**
   - [x] 5.1 Enforce XXE (`<!ENTITY`), SQLi, and shell metacharacter sanitization. — Phase 2
   - [x] 5.2 Enforce Human-in-the-Loop (HITL) approval state machine for transactions exceeding $10,000. — Phase 2
 - [ ] **Task 6: "The Necromancer's Altar" Dashboard (`public/`)**
   - [x] 6.1 Build 4-zone Gothic-Cyberpunk UI with 1-Click Graveyard Presets. — Phase 1
-  - [ ] 6.2 Integrate live PBT fuzzing telemetry, shrinker inspector, and 3-layer MCP wire viewer. — 3-layer wire viewer done Phase 1; **3-scenario playground + Sentinel log + HITL card done Phase 2**; PBT telemetry + shrinker inspector in Phase 3.
+  - [x] 6.2 Integrate live PBT fuzzing telemetry, shrinker inspector, and 3-layer MCP wire viewer. — 3-layer wire viewer done Phase 1; **3-scenario playground + Sentinel log + HITL card done Phase 2**; **PBT telemetry + shrinker inspector + Exorcism deck done Phase 3** (progress run, counterexample, Auto-Patch, latency legacy vs adapter, node 4 status).
   - [x] 6.3 Bundle standalone client-side fallback engine for zero-backend GitHub Pages portability. — Phase 1 (Mode B engine in `public/app.js`, `docs/` is its Pages copy)

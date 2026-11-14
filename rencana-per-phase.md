@@ -56,11 +56,41 @@ Exit TERCAPAI: 3 skenario (eksekusi standar, HITL $50.000, serangan XXE/SQLi) ja
   ternyata right-trimmed (66–72 byte, bukan 80) — parser hanya mensyaratkan
   byte sampai field non-memo terakhir.
 
-## Phase 3 — PBT Exorcism + Demon Bug + Auto-Patch
-fast-check 100 run, shrinking counterexample, Demon Bug toggle, auto-patch +
-re-verify 100/100.
+## Phase 3 — PBT Exorcism + Demon Bug + Auto-Patch — SELESAI 14 Nov
+- Engine: `src/engine/exorcist-pbt.ts` (fast-check 4.10.2, 100 run/artifact,
+  seed 20261114; arbitraries: boundary numbers, floating-point cents, Unicode
+  strings, XML metacharacters, leap-year dates) + mirror browser di
+  `public/app.js` (`runExorcism`, PRNG mulberry32 ber-seed).
+- Demon Bug deterministik: `Math.floor(amountUsd * 100)` + ampersand XML tak
+  ter-escape. Tertangkap + shrink ke minimal counterexample
+  `{ amountUsd: 0.29, memo: "&" }` (SOAP) / `{ claimAmountUsd: 0.29 }` (COBOL);
+  SQL tidak terpengaruh bug — tetap VERIFIED_PURE.
+- Auto-Patch: `Math.round((val + Number.EPSILON) * 100)` + XML entity escaping,
+  re-verify 100/100 → PATCHED; counterexample tetap tercatat sebagai bukti fix.
+- API: `POST /api/exorcise { artifactId, injectDemonBug, applyPatch }` →
+  `PBTExorcismReport`; karantina per-app: tool tertangkap hilang dari
+  `GET /mcp/tools` dan ditolak `POST /mcp/call` (`BLOCKED_SECURITY`,
+  ruleId `DEMON_DETECTED`) sampai Auto-Patch.
+- UI: deck Exorcism (toggle Demon Bug, tombol Run PBT, progress run,
+  counterexample ter-shrink, tombol Auto-Patch, status VERIFIED_PURE /
+  DEMON_DETECTED / PATCHED, telemetri latensi legacy vs adapter); node
+  pipeline 4 ikut status exorcism; karantina berlaku juga di playground
+  browser (`executeCall`).
+- Tes: Vitest 129/129 (13 exorcist + 6 exorcise-server + 10
+  exorcism-browser baru); E2E Playwright Phase 3 25/25 + Phase 2 25/25.
+- Live curl (server lokal :8932): health mode phase-3; exorcise demon →
+  DEMON_DETECTED 82/100 + shrunk {0.29, "&"}; /mcp/tools 5 tool saat
+  terblokir; patch → PATCHED 100/100 + 6 tool kembali.
+- Catatan build: `GetAccountBalance` ternyata punya input kedua `routingCode`
+  (9-digit ABA) — arb balance wajib menyertakannya; ambang trap float hanya
+  3% per run (cents 29/57/58) sehingga arb USD di-bias ke nilai trap
+  (0.29/0.57/0.58) agar deteksi demon deterministik; `pkill -f` sempat
+  membunuh shell sendiri karena command line mengandung string target
+  literal — pkill harus dijalankan sendiri tanpa string itu di command yang
+  sama; `supertest` tidak terpasang — tes server pakai pola `app.listen(0)` +
+  `fetch` seperti `server.test.ts`.
 Exit: bug 0.29 ter-shrink ke minimal counterexample + patch mengembalikan
-100/100, terverifikasi di browser.
+100/100, terverifikasi di browser dan server. ✅
 
 ## Phase 4 — Polish + uji HP user
 .kiro lengkap + terverifikasi, UI gothic final, tes regresi, uji HP user.

@@ -1390,7 +1390,7 @@ if (typeof document !== 'undefined') {
     if (priorReport) {
       setNodeState(4, priorReport.status === 'DEMON_DETECTED' ? 'active' : 'done', priorReport.status);
     } else {
-      setNodeState(4, 'locked', 'Phase 3');
+      setNodeState(4, 'locked', 'Phase 4');
     }
     renderExorcismDeck();
   }

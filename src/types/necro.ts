@@ -56,6 +56,13 @@ export interface MCPToolCallOutcome {
     reason: string;
     ApprovalToken?: string;
   };
+  /** Present only when status is PENDING_HITL: what must be approved and how. */
+  hitl?: {
+    field: string;
+    value: number;
+    maxAllowed: number;
+    approvalToken: string;
+  };
 }
 
 /** Error thrown when a legacy artifact is malformed. Carries the offending line when known. */

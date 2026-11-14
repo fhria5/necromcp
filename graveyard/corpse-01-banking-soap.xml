@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 1998 FIRST NATIONAL MAINFRAME CORE BANKING WSDL/SOAP SPECIFICATION -->
+<definitions name="CoreBankingLegacyService"
+  targetNamespace="urn:mainframe:banking:1998"
+  xmlns:tns="urn:mainframe:banking:1998"
+  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+  xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/">
+
+  <message name="GetAccountBalanceRequest">
+    <part name="ACCT_NUM_STR" type="xsd:string" doc="8-digit customer account number"/>
+    <part name="ROUTING_ABA_CD" type="xsd:string" doc="9-digit ABA routing code"/>
+  </message>
+  <message name="GetAccountBalanceResponse">
+    <part name="LEDGER_BAL_CENTS" type="xsd:long" doc="Current balance in integer cents"/>
+    <part name="AVAIL_BAL_CENTS" type="xsd:long" doc="Available balance in integer cents"/>
+    <part name="CCY_ISO_CD" type="xsd:string" doc="3-letter ISO currency"/>
+  </message>
+
+  <message name="ExecuteWireTransferRequest">
+    <part name="SRC_ACCT_NUM" type="xsd:string" doc="Origin account number"/>
+    <part name="DST_ACCT_NUM" type="xsd:string" doc="Beneficiary account number"/>
+    <part name="XFER_AMT_USD" type="xsd:decimal" doc="Transfer amount in USD (HITL Gate > 10000)"/>
+    <part name="WIRE_MEMO_TXT" type="xsd:string" doc="Payment remittance remarks"/>
+  </message>
+  <message name="ExecuteWireTransferResponse">
+    <part name="FEDWIRE_REF_ID" type="xsd:string" doc="Mainframe settlement reference"/>
+    <part name="SETTLE_STATUS_CD" type="xsd:string" doc="00=SETTLED, 99=FAULT"/>
+    <part name="POSTED_CENTS" type="xsd:long" doc="Exact integer cents posted to ledger"/>
+  </message>
+</definitions>

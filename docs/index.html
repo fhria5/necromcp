@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Necromancer's Altar — NecroMCP Phase 1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="telemetry">
+  <div class="brand">
+    <span class="brand-sigil" aria-hidden="true">&#9760;</span>
+    <div class="brand-text">
+      <h1>NecroMCP</h1>
+      <p class="brand-sub">The Necromancer&rsquo;s Altar &mdash; Phase 1</p>
+    </div>
+  </div>
+  <div class="pills" role="status" aria-label="System status">
+    <span class="pill pill-ok"><span class="pill-dot"></span>KIRO SPECS: SYNCED</span>
+    <span class="pill pill-ok"><span class="pill-dot"></span>MCP JSON-RPC: ONLINE</span>
+    <span class="pill pill-phase"><span class="pill-dot"></span>PBT ENGINE: PHASE 3</span>
+  </div>
+</header>
+
+<main class="layout">
+  <!-- Zone 2: left panel -->
+  <aside class="panel panel-left" aria-label="Corpse selection and AST">
+    <section class="preset-block">
+      <h2>Select Corpse</h2>
+      <div class="preset-list">
+        <button type="button" id="preset-soap-bank" class="preset preset-active" aria-pressed="true">
+          <span class="preset-name">1998 SOAP Core Bank</span>
+          <span class="preset-meta">WSDL &middot; corpse-01 &middot; Active</span>
+        </button>
+        <button type="button" id="preset-sql-warehouse" class="preset preset-disabled" disabled aria-disabled="true">
+          <span class="preset-name">2004 SQL Warehouse</span>
+          <span class="preset-meta">DDL dump &middot; corpse-02</span>
+          <span class="badge-phase">Phase 2</span>
+        </button>
+        <button type="button" id="preset-cobol-ledger" class="preset preset-disabled" disabled aria-disabled="true">
+          <span class="preset-name">1989 COBOL Claims Ledger</span>
+          <span class="preset-meta">Flat file &middot; corpse-03</span>
+          <span class="badge-phase">Phase 2</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="ast-block">
+      <div class="tabs" role="tablist" aria-label="Artifact views">
+        <button type="button" id="tab-raw" class="tab tab-active" role="tab" aria-selected="true" aria-controls="panel-raw">Raw Corpse</button>
+        <button type="button" id="tab-ears" class="tab" role="tab" aria-selected="false" aria-controls="panel-ears">Kiro EARS &amp; Zod</button>
+      </div>
+      <div id="ast-view">
+        <div id="panel-raw" role="tabpanel" aria-labelledby="tab-raw">
+          <div id="raw-corpse" class="code-view" aria-label="Raw WSDL source"></div>
+        </div>
+        <div id="panel-ears" role="tabpanel" aria-labelledby="tab-ears" hidden>
+          <h3 class="ears-heading">EARS Specification</h3>
+          <pre id="ears-spec" class="code-block"></pre>
+          <h3 class="ears-heading">Zod Schemas</h3>
+          <pre id="zod-code" class="code-block"></pre>
+        </div>
+      </div>
+    </section>
+  </aside>
+
+  <!-- Zone 3: center panel -->
+  <section class="panel panel-center" aria-label="Ritual pipeline and tool call">
+    <h2>Ritual Pipeline</h2>
+    <ol class="pipeline" aria-label="Resurrection pipeline">
+      <li class="node" id="node-1" data-state="pending">
+        <span class="node-num">1</span>
+        <span class="node-name">Legacy Fossil</span>
+        <span class="node-state">Pending</span>
+      </li>
+      <li class="node" id="node-2" data-state="pending">
+        <span class="node-num">2</span>
+        <span class="node-name">AST + Steering</span>
+        <span class="node-state">Pending</span>
+      </li>
+      <li class="node" id="node-3" data-state="pending">
+        <span class="node-num">3</span>
+        <span class="node-name">MCP Bridge</span>
+        <span class="node-state">Pending</span>
+      </li>
+      <li class="node node-locked" id="node-4" data-state="locked">
+        <span class="node-num">4</span>
+        <span class="node-name">PBT Verified</span>
+        <span class="node-state">Phase 3</span>
+      </li>
+    </ol>
+
+    <div class="tool-call">
+      <h2>Call Tool</h2>
+      <label class="field-label" for="op-select">Operation</label>
+      <select id="op-select" class="select"></select>
+      <div id="tool-inputs" class="tool-inputs"></div>
+      <button type="button" id="call-tool-btn" class="btn-call">Call Tool</button>
+      <div id="tool-result" class="tool-result" aria-live="polite">
+        <span class="result-empty">Select an operation and call the tool to raise the corpse.</span>
+      </div>
+      <p class="latency-line">Latency: <span id="latency">&mdash;</span></p>
+    </div>
+  </section>
+
+  <!-- Zone 4: right panel -->
+  <aside class="panel panel-right" aria-label="Wire inspector">
+    <h2>Wire Inspector</h2>
+    <section class="wire-layer">
+      <h3><span class="layer-tag">Layer 1</span> MCP JSON-RPC Request</h3>
+      <pre id="wire-mcp" class="code-block wire-block"></pre>
+    </section>
+    <section class="wire-layer">
+      <h3><span class="layer-tag">Layer 2</span> SOAP Envelope</h3>
+      <pre id="wire-soap" class="code-block wire-block"></pre>
+    </section>
+    <section class="wire-layer">
+      <h3><span class="layer-tag">Layer 3</span> Normalized JSON Output</h3>
+      <pre id="wire-json" class="code-block wire-block"></pre>
+    </section>
+  </aside>
+</main>
+
+<footer class="footer">
+  <p>Simulator lokal &mdash; bukan mainframe sungguhan. NecroMCP Phase 1 &middot; corpse-01: 1998 SOAP Core Bank &middot; Local simulator, not a real mainframe.</p>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

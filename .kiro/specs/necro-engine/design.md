@@ -42,7 +42,6 @@ When injected: currency adapter uses `Math.floor(amountUsd * 100)` (not
 - `GET /api/graveyard` — all pre-loaded corpses + custom uploads
 - `POST /api/resurrect` — `{ artifactId, customSource?, format? }` → schema
 - `POST /api/exorcise` — `{ artifactId, injectDemonBug, applyPatch }` → report
-- `GET /api/kiro-files` — full `.kiro/` tree + contents
 - `GET /mcp/tools` — JSON-RPC 2.0 `tools/list`
 - `POST /mcp/call` — `{ artifactId, toolName, arguments, bypassHitlToken? }`
   → Sentinel → Translator → Simulator → normalized JSON

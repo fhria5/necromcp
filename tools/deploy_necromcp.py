@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Push NecroMCP Phase 3 files to fhria5/necromcp and enable GitHub Pages.
+"""Push NecroMCP Phase 4 files to fhria5/necromcp and enable GitHub Pages.
 Uses the stored custom.github credential via the vault surrogate.
 Run: python3 tools/deploy_necromcp.py
 """
@@ -34,9 +34,13 @@ FILES = [
     'public/index.html',
     'public/styles.css',
     'public/app.js',
+    'public/favicon.svg',
+    'public/favicon.ico',
     'docs/index.html',
     'docs/styles.css',
     'docs/app.js',
+    'docs/favicon.svg',
+    'docs/favicon.ico',
     'tests/parser.test.ts',
     'tests/parser-sql.test.ts',
     'tests/parser-cobol.test.ts',
@@ -53,10 +57,20 @@ FILES = [
     'tests/exorcism-browser.test.ts',
     'tests/exorcise-server.test.ts',
     'tests/browser-engine.test.ts',
+    'tests/phase4-polish.test.ts',
     'tests/e2e-phase2.cjs',
     'tests/e2e-phase3.cjs',
+    'tests/e2e-phase4.cjs',
     'tools/deploy_necromcp.py',
+    '.kiro/specs/necro-engine/requirements.md',
+    '.kiro/specs/necro-engine/design.md',
     '.kiro/specs/necro-engine/tasks.md',
+    '.kiro/steering/legacy-translation.md',
+    '.kiro/steering/security-exorcism.md',
+    '.kiro/steering/gothic-ui-standards.md',
+    '.kiro/hooks/graveyard-watcher.json',
+    '.kiro/hooks/pbt-gatekeeper.json',
+    '.kiro/settings/mcp.json',
 ]
 
 
@@ -82,7 +96,7 @@ def req(method, path, body=None):
 import os
 import shutil
 os.makedirs(BASE + 'docs', exist_ok=True)
-for _f in ('index.html', 'styles.css', 'app.js'):
+for _f in ('index.html', 'styles.css', 'app.js', 'favicon.svg', 'favicon.ico'):
     shutil.copyfile(BASE + 'public/' + _f, BASE + 'docs/' + _f)
 print('docs/ regenerated from public/')
 
@@ -102,7 +116,7 @@ for f in FILES:
         else:
             raise
     body = {
-        'message': 'NecroMCP Phase 3: PBT Exorcism + Demon Bug + Auto-Patch, deck UI',
+        'message': 'NecroMCP Phase 4: gothic polish, favicon, a11y + responsive, .kiro audit',
         'content': base64.b64encode(data).decode(),
         'branch': BRANCH,
     }

@@ -34,10 +34,27 @@ lihat AST → panggil 1 tool → lihat wire payload + JSON.
   `doc="...Gate > 10000"` — regex `<part>` diperbaiki agar tahan `>` dalam atribut
   ber-quote (ketemu lewat tes, bukan laporan user).
 
-## Phase 2 — 3 corpse + MCP + Sentinel + HITL
+## Phase 2 — 3 corpse + MCP + Sentinel + HITL (SELESAI 14 Nov)
 Translator JSON↔SOAP/SQL/COBOL, MCP tools/list + tools/call, guardrail Sentinel
 (XXE/SQLi block), gate HITL >$10.000, 3 skenario playground.
-Exit: 3 skenario (eksekusi standar, HITL $50.000, serangan XXE/SQLi) jalan live.
+Exit TERCAPAI: 3 skenario (eksekusi standar, HITL $50.000, serangan XXE/SQLi) jalan live.
+- Tes: **100/100 vitest lolos** (42 Phase 1 + 58 Phase 2: parser-sql 7,
+  parser-cobol 7, translator-sql 4, translator-cobol 5, sentinel 7, hitl 4,
+  simulator-phase2 8, server 16, browser-engine parity 13, sisanya Phase 1).
+  `tsc` bersih.
+- Playwright E2E independen (server Express lokal): **25/25 lolos** — 3 preset
+  aktif, query SQL (qty 31), lookup COBOL ($1.450,75), skenario 1 wire $450
+  SUCCESS, skenario 2 HITL $50.000 → kartu persetujuan → approve → 5.000.000
+  sen (deny membatalkan), skenario 3 XXE + SQLi diblokir + tercatat di log
+  Sentinel, wire kosong saat diblokir.
+- Live curl (server lokal): health phase-2, resurrect corpse-02/03 200,
+  /mcp/tools 6 tool, XXE → BLOCKED_SECURITY (wire kosong), SQLi →
+  BLOCKED_SECURITY, $50.000 → PENDING_HITL + token → approve → SUCCESS,
+  wire $450 tetap SUCCESS.
+- Catatan build: `.hitl-card[hidden]` butuh aturan display sendiri (display:flex
+  menimpa aturan UA — pelajaran yang sama dari Gembala); baris data COBOL
+  ternyata right-trimmed (66–72 byte, bukan 80) — parser hanya mensyaratkan
+  byte sampai field non-memo terakhir.
 
 ## Phase 3 — PBT Exorcism + Demon Bug + Auto-Patch
 fast-check 100 run, shrinking counterexample, Demon Bug toggle, auto-patch +

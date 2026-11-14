@@ -456,6 +456,76 @@ h3 { font-size: 13px; }
 .result-blocked { color: var(--crimson); }
 .result-pending { color: var(--amber); }
 
+/* ---- PBT Exorcism deck (Phase 3) ---- */
+.exorcism-block h2 { margin-bottom: 6px; }
+.demon-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+.demon-toggle input { accent-color: var(--crimson); width: 16px; height: 16px; }
+.exorcism-actions { display: flex; gap: 8px; margin-bottom: 10px; }
+.btn-exorcise {
+  flex: 1;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 8px;
+  background: var(--necrotic);
+  color: #FFFFFF;
+  font-family: "Space Grotesk", "Inter", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn-exorcise:hover { filter: brightness(1.15); }
+.btn-patch {
+  flex: 1;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 8px;
+  background: var(--ectoplasm);
+  color: #04120B;
+  font-family: "Space Grotesk", "Inter", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn-patch:hover { filter: brightness(1.1); }
+/* Buttons set display via the UA stylesheet only, but be explicit: a hidden
+ * patch button must stay hidden (same lesson as .hitl-card). */
+.btn-patch[hidden] { display: none; }
+.exorcism-progress { margin-bottom: 10px; }
+.exorcism-progress[hidden] { display: none; }
+.progress-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--bg-abyss);
+  border: 1px solid var(--border-crypt);
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  width: 0;
+  background: var(--ectoplasm);
+  transition: width 200ms ease;
+}
+.progress-text { margin: 6px 0 0; font-size: 12px; color: var(--text-dim); }
+.exorcism-result {
+  background: var(--bg-abyss);
+  border: 1px solid var(--border-crypt);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  white-space: pre-line;
+  word-break: break-word;
+  min-height: 52px;
+}
+
 /* ---- Footer ---- */
 .footer {
   padding: 12px 20px 16px;

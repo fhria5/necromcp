@@ -34,9 +34,9 @@ function check(name, cond, extra) {
   await page.waitForTimeout(500);
 
   console.log('Phase 3 E2E:');
-  check('page title is Phase 3', (await page.title()).includes('Phase 3'), await page.title());
-  check('footer mentions Phase 3 + PBT Exorcism', (await page.textContent('.footer')).includes('PBT Exorcism live'));
-  check('node 4 shows Phase 3 before any run', (await page.textContent('#node-4 .node-state')).trim() === 'Phase 3');
+  check('page title is Phase 4', (await page.title()).includes('Phase 4'), await page.title());
+  check('footer mentions Phase 4 + PBT Exorcism', (await page.textContent('.footer')).includes('PBT Exorcism live'));
+  check('node 4 shows Phase 4 before any run', (await page.textContent('#node-4 .node-state')).trim() === 'Phase 4');
   check('exorcism deck present with demon toggle + run button',
     (await page.$('#demon-toggle')) !== null && (await page.$('#exorcism-run')) !== null);
   check('auto-patch button hidden before any run', await page.isHidden('#exorcism-patch'));
@@ -89,7 +89,7 @@ function check(name, cond, extra) {
   // COBOL corpse: demon run detects the same 0.29 bug.
   await page.click('#preset-cobol-ledger');
   await page.waitForTimeout(200);
-  check('node 4 resets to Phase 3 for a corpse with no run yet', (await page.textContent('#node-4 .node-state')).trim() === 'Phase 3');
+  check('node 4 resets to Phase 4 for a corpse with no run yet', (await page.textContent('#node-4 .node-state')).trim() === 'Phase 4');
   await page.click('#exorcism-run');
   await page.waitForTimeout(300);
   const cobolResult = await page.textContent('#exorcism-result');

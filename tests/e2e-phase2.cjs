@@ -34,13 +34,13 @@ function check(name, cond, extra) {
   await page.waitForTimeout(500);
 
   console.log('Phase 2 E2E:');
-  check('page title is Phase 2', (await page.title()).includes('Phase 2'), await page.title());
+  check('page title is Phase 3', (await page.title()).includes('Phase 3'), await page.title());
   check(
     'all 3 presets enabled',
     (await page.$eval('#preset-sql-warehouse', (b) => !b.disabled)) &&
       (await page.$eval('#preset-cobol-ledger', (b) => !b.disabled)),
   );
-  check('footer mentions Phase 2 + 3 corpses', (await page.textContent('.footer')).includes('3 corpses'));
+  check('footer mentions Phase 3 + 3 corpses', (await page.textContent('.footer')).includes('3 corpses'));
 
   // SQL preset end-to-end.
   await page.click('#preset-sql-warehouse');

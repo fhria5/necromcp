@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Push NecroMCP Phase 1 files to fhria5/necromcp and enable GitHub Pages.
+"""Push NecroMCP Phase 3 files to fhria5/necromcp and enable GitHub Pages.
 Uses the stored custom.github credential via the vault surrogate.
 Run: python3 tools/deploy_necromcp.py
 """
@@ -29,6 +29,7 @@ FILES = [
     'src/engine/simulator.ts',
     'src/engine/sentinel.ts',
     'src/engine/hitl.ts',
+    'src/engine/exorcist-pbt.ts',
     'src/server.ts',
     'public/index.html',
     'public/styles.css',
@@ -48,8 +49,12 @@ FILES = [
     'tests/sentinel.test.ts',
     'tests/hitl.test.ts',
     'tests/server.test.ts',
+    'tests/exorcist.test.ts',
+    'tests/exorcism-browser.test.ts',
+    'tests/exorcise-server.test.ts',
     'tests/browser-engine.test.ts',
     'tests/e2e-phase2.cjs',
+    'tests/e2e-phase3.cjs',
     'tools/deploy_necromcp.py',
     '.kiro/specs/necro-engine/tasks.md',
 ]
@@ -97,7 +102,7 @@ for f in FILES:
         else:
             raise
     body = {
-        'message': 'NecroMCP Phase 2: SQL + COBOL parsers, Sentinel, HITL, 3 scenarios',
+        'message': 'NecroMCP Phase 3: PBT Exorcism + Demon Bug + Auto-Patch, deck UI',
         'content': base64.b64encode(data).decode(),
         'branch': BRANCH,
     }

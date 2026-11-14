@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>The Necromancer's Altar — NecroMCP Phase 1</title>
+<title>The Necromancer's Altar — NecroMCP Phase 2</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
@@ -15,7 +15,7 @@
     <span class="brand-sigil" aria-hidden="true">&#9760;</span>
     <div class="brand-text">
       <h1>NecroMCP</h1>
-      <p class="brand-sub">The Necromancer&rsquo;s Altar &mdash; Phase 1</p>
+      <p class="brand-sub">The Necromancer&rsquo;s Altar &mdash; Phase 2</p>
     </div>
   </div>
   <div class="pills" role="status" aria-label="System status">
@@ -35,15 +35,13 @@
           <span class="preset-name">1998 SOAP Core Bank</span>
           <span class="preset-meta">WSDL &middot; corpse-01 &middot; Active</span>
         </button>
-        <button type="button" id="preset-sql-warehouse" class="preset preset-disabled" disabled aria-disabled="true">
+        <button type="button" id="preset-sql-warehouse" class="preset" aria-pressed="false">
           <span class="preset-name">2004 SQL Warehouse</span>
-          <span class="preset-meta">DDL dump &middot; corpse-02</span>
-          <span class="badge-phase">Phase 2</span>
+          <span class="preset-meta">DDL dump &middot; corpse-02 &middot; Active</span>
         </button>
-        <button type="button" id="preset-cobol-ledger" class="preset preset-disabled" disabled aria-disabled="true">
+        <button type="button" id="preset-cobol-ledger" class="preset" aria-pressed="false">
           <span class="preset-name">1989 COBOL Claims Ledger</span>
-          <span class="preset-meta">Flat file &middot; corpse-03</span>
-          <span class="badge-phase">Phase 2</span>
+          <span class="preset-meta">Flat file &middot; corpse-03 &middot; Active</span>
         </button>
       </div>
     </section>
@@ -104,6 +102,47 @@
       </div>
       <p class="latency-line">Latency: <span id="latency">&mdash;</span></p>
     </div>
+
+    <div class="hitl-card" id="hitl-card" hidden>
+      <h3>Human-in-the-Loop Approval</h3>
+      <p>This mutation exceeds the $10,000 limit and is paused until a human approves it.</p>
+      <dl class="hitl-facts">
+        <div><dt>Tool</dt><dd id="hitl-tool">&mdash;</dd></div>
+        <div><dt>Amount</dt><dd id="hitl-amount">&mdash;</dd></div>
+        <div><dt>Approval token</dt><dd><code id="hitl-token">&mdash;</code></dd></div>
+      </dl>
+      <div class="hitl-actions">
+        <button type="button" id="hitl-approve" class="btn-approve">Approve &amp; execute</button>
+        <button type="button" id="hitl-deny" class="btn-deny">Deny</button>
+      </div>
+      <p id="hitl-status" class="hitl-status" aria-live="polite"></p>
+    </div>
+
+    <div class="scenario-block">
+      <h2>Playground Scenarios</h2>
+      <p class="scenario-hint">One click runs a full story through the engine — no typing needed.</p>
+      <div class="scenario-list">
+        <button type="button" id="scenario-standard" class="scenario-btn">
+          <span class="scenario-name">1 · Standard execution</span>
+          <span class="scenario-meta">Wire $450 — should settle</span>
+        </button>
+        <button type="button" id="scenario-hitl" class="scenario-btn">
+          <span class="scenario-name">2 · HITL $50,000</span>
+          <span class="scenario-meta">Pauses for human approval</span>
+        </button>
+        <button type="button" id="scenario-attack" class="scenario-btn">
+          <span class="scenario-name">3 · XXE / SQLi attack</span>
+          <span class="scenario-meta">Sentinel must block both</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="sentinel-block">
+      <h2>Sentinel Log</h2>
+      <div id="sentinel-log" class="sentinel-log" aria-live="polite">
+        <span class="log-empty">No blocked calls yet. Run scenario 3 to see Sentinel work.</span>
+      </div>
+    </div>
   </section>
 
   <!-- Zone 4: right panel -->
@@ -114,7 +153,7 @@
       <pre id="wire-mcp" class="code-block wire-block"></pre>
     </section>
     <section class="wire-layer">
-      <h3><span class="layer-tag">Layer 2</span> SOAP Envelope</h3>
+      <h3><span class="layer-tag">Layer 2</span> <span id="wire-layer2-title">SOAP Envelope</span></h3>
       <pre id="wire-soap" class="code-block wire-block"></pre>
     </section>
     <section class="wire-layer">
@@ -125,7 +164,7 @@
 </main>
 
 <footer class="footer">
-  <p>Simulator lokal &mdash; bukan mainframe sungguhan. NecroMCP Phase 1 &middot; corpse-01: 1998 SOAP Core Bank &middot; Local simulator, not a real mainframe.</p>
+  <p>Simulator lokal &mdash; bukan mainframe sungguhan. NecroMCP Phase 2 &middot; 3 corpses resurrected (SOAP 1998, SQL 2004, COBOL 1989) &middot; Sentinel + HITL live &middot; Local simulator, not a real mainframe.</p>
 </footer>
 
 <script src="app.js"></script>

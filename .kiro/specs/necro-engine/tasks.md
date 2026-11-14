@@ -4,6 +4,9 @@ Phase 0 (spec only) is done. Phase 1 (MVP) is done 14 Nov ~18:35 — 42/42 vites
 pass, Playwright E2E 13/13, live curl verified (see rencana-per-phase.md).
 Phase 2 is done 14 Nov — 100/100 vitest pass (42 Phase 1 + 58 Phase 2),
 live curl + Playwright E2E verified (see rencana-per-phase.md).
+Phase 3 is done 14 Nov — 129/129 vitest pass, Playwright E2E Phase 3 25/25 +
+Phase 2 25/25, live curl verified (see rencana-per-phase.md).
+Phase 4 is done 14 Nov — polish + HP prep (see rencana-per-phase.md).
 (The user-supplied blueprint marks these [x]; that is corrected here.)
 
 - [ ] **Task 1: Multi-Format Legacy AST Parser (`src/engine/parser.ts`)**
@@ -29,3 +32,10 @@ live curl + Playwright E2E verified (see rencana-per-phase.md).
   - [x] 6.1 Build 4-zone Gothic-Cyberpunk UI with 1-Click Graveyard Presets. — Phase 1
   - [x] 6.2 Integrate live PBT fuzzing telemetry, shrinker inspector, and 3-layer MCP wire viewer. — 3-layer wire viewer done Phase 1; **3-scenario playground + Sentinel log + HITL card done Phase 2**; **PBT telemetry + shrinker inspector + Exorcism deck done Phase 3** (progress run, counterexample, Auto-Patch, latency legacy vs adapter, node 4 status).
   - [x] 6.3 Bundle standalone client-side fallback engine for zero-backend GitHub Pages portability. — Phase 1 (Mode B engine in `public/app.js`, `docs/` is its Pages copy)
+
+- [ ] **Task 7: Phase 4 polish — Gothic final + HP prep (`public/`, `.kiro/`)**
+  - [x] 7.1 Favicon: `public/favicon.svg` + `public/favicon.ico` (self-made, green ☠ sigil on abyss), linked from `index.html`; the old 404 is gone.
+  - [x] 7.2 Version markers to Phase 4: title, brand, pill, node 4, footer, server health `mode: phase-4`; footer keeps the honesty line (local simulator, not a real mainframe).
+  - [x] 7.3 Accessibility: `:focus-visible` outline, `prefers-reduced-motion` disables the progress transition, tap targets ≥44px (tabs, Call Tool, scenario + exorcise buttons, 20px demon checkbox), no horizontal overflow at 390px or 1280px.
+  - [x] 7.4 `.kiro` audit: all 9 files present; corrected 3 false claims — requirements 2.1 (`/api/resurrected/*` never existed → real routes), design.md (`GET /api/kiro-files` never existed → removed), settings/mcp.json (`src/engine/mcp-stdio.ts` never existed → HTTP `url` to `/mcp/call`).
+  - [x] 7.5 Tests: `tests/phase4-polish.test.ts` (14 checks) + `tests/e2e-phase4.cjs` (18 checks, 390px + 1280px); full regression green (see rencana-per-phase.md).
